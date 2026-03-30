@@ -1,0 +1,5 @@
+{
+  "name": "Tachikoma",
+  "version": "0.0.1",
+  "description": "Skills for interacting with other Agent tools - Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI"
+}
