@@ -90,7 +90,7 @@ Tachikoma:collab-fix Fix the bug showing here as ### Bug 3
 
 #### macOS Ecosystem Interface:
 ```bash
-After you finish, use mac-eco to say "All done" and a brief summary of what you did.
+After you finish, use mac to say "All done" and a brief summary of what you did.
 ```
 ```bash
 Use imessage to send me (my email address/phone number) a message "Task complete" with the summary.
@@ -124,6 +124,8 @@ AI cli toolset, integrating various AI programming assistants for parallel opera
 | github-copilot-cli | GitHub Copilot CLI integration |
 | kiro-cli | Kiro CLI integration |
 | kimi-cli | Kimi CLI integration |
+
+Here openai provides their offical plugin [codex-plugin-cc](https://github.com/openai/codex-plugin-cc)
 
 **Protocol:** `/Tachikoma:collab-fix` — Multi-agent collaborative fix protocol
 
