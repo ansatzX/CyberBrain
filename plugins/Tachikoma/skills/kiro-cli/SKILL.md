@@ -1,62 +1,66 @@
 ---
 name: kiro-cli
-description: Wield Kiro CLI as a powerful auxiliary tool for AI chat, agent management, natural language to shell translation, and MCP integration
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Grep
-  - Glob
-  - AskUserQuestion
+description: Use when the user asks to run Kiro CLI in non-interactive mode or references Kiro for AI chat, shell translation, or agent management.
 ---
 
-# Kiro CLI Skill Guide (v1.28.3)
-
-## When to Use Kiro
-
-| Use Case | Why Kiro |
-| --- | --- |
-| AI chat assistant | Natural conversation in your terminal |
-| AI agent management | Create, configure, and run AI agents |
-| Natural language to shell | `translate` command for shell command generation |
-| MCP integration | Built-in MCP server management |
-| ACP server | Agent Client Protocol support |
-
-**When NOT to use**: Simple quick tasks (overhead not worth it), interactive refinement where immediate feedback is needed.
+# Kiro CLI Skill Guide
 
 ## Running a Task
-
 1. Verify installation: `command -v kiro-cli`
-2. Select the mode required for the task; default to chat mode unless a specific subcommand is needed.
-3. **Always use `AskUserQuestion` before executing any generated shell commands from the `translate` subcommand.**
+2. Select the mode required for the task; default to `--no-interactive` mode for non-interactive use.
+3. **Always use `AskUserQuestion` before using `--trust-all-tools` or executing generated shell commands.**
 4. Assemble the command with the appropriate options:
-   - `--agent <AGENT_NAME>` - Launch chat with specific agent
-   - `--tui` - Launch chat in TUI mode
-   - `-v, --verbose` - Increase logging verbosity
-5. **Important**: For shell translation, always show the generated command to the user for approval before execution.
+   - `--agent <AGENT_NAME>` - Use specific agent
+   - `--model <MODEL>` - Model to use
+   - `--no-interactive` - Run without user input (required for non-interactive)
+   - `-a, --trust-all-tools` - Trust all tools without confirmation
+   - `--trust-tools <TOOL_NAMES>` - Trust specific tools only (comma-separated)
+   - `-r, --resume` - Resume most recent conversation
+5. **IMPORTANT**: By default, append `2>/dev/null` to all `kiro-cli` commands to suppress stderr noise. Only show stderr if the user explicitly requests it or if debugging is needed.
+6. Run the command, capture stdout/stderr (filtered as appropriate), and summarize the outcome for the user.
 
 ### Quick Reference
+| Use case | Command pattern |
+| --- | --- |
+| Non-interactive chat | `kiro-cli chat "your input" --no-interactive 2>/dev/null` |
+| With specific agent | `kiro-cli chat --agent <agent> "input" --no-interactive 2>/dev/null` |
+| Trust all tools | `kiro-cli chat "input" --trust-all-tools --no-interactive 2>/dev/null` |
+| Trust specific tools | `kiro-cli chat "input" --trust-tools=fs_read,fs_write --no-interactive 2>/dev/null` |
+| Resume conversation | `kiro-cli chat --resume --no-interactive 2>/dev/null` |
+| List models | `kiro-cli chat --list-models` |
+| List sessions | `kiro-cli chat --list-sessions` |
 
-| Use case | Mode | Command pattern |
+### Tool Trust Options
+| Option | Description | Use Case |
 | --- | --- | --- |
-| AI chat (default) | chat | `kiro-cli chat` |
-| Chat with specific agent | agent-chat | `kiro-cli --agent <agent-name>` |
-| TUI mode | tui | `kiro-cli --tui` |
-| Shell translation | translate | `kiro-cli translate "how to list files"` |
-| Manage agents | agent | `kiro-cli agent` |
-| Manage MCP | mcp | `kiro-cli mcp` |
-| Open dashboard | dashboard | `kiro-cli dashboard` |
-| Launch desktop app | launch | `kiro-cli launch` |
+| (none) | Ask for confirmation | Safest, general use |
+| `--trust-tools <tools>` | Trust specific tools | Controlled access |
+| `--trust-all-tools` | Trust all tools | Full access, no confirmation |
+
+### Example Commands
+
+```bash
+# Non-interactive chat
+kiro-cli chat "Explain this code" --no-interactive 2>/dev/null
+
+# With specific agent and trust all tools
+kiro-cli chat --agent builder "Fix the bug" --trust-all-tools --no-interactive 2>/dev/null
+
+# Resume conversation
+kiro-cli chat --resume --no-interactive 2>/dev/null
+
+# If redirection fails, wrap in bash -lc
+bash -lc 'kiro-cli chat "input" --no-interactive 2>/dev/null'
+```
 
 ## Following Up
-
-- After every `kiro-cli` command, immediately use `AskUserQuestion` to confirm next steps, collect clarifications, or decide whether to continue the conversation.
+- After every `kiro-cli` command, immediately use `AskUserQuestion` to confirm next steps, collect clarifications, or decide whether to resume with `--resume`.
 - For shell translation, always confirm execution with the user before running the command.
-- If an interactive chat session was started, ask the user if they want to continue.
+- Restate the chosen agent and tool trust options when proposing follow-up actions.
 
 ## Error Handling
-
 - Stop and report failures whenever `kiro-cli --version` or a `kiro-cli` command exits non-zero; request direction before retrying.
 - Use `kiro-cli doctor` to debug installation issues if needed.
+- Before you use high-impact flags (`--trust-all-tools`) ask the user for permission using AskUserQuestion unless it was already given.
 - Never execute a generated shell command without explicit user approval.
 - Always validate Kiro's output for security vulnerabilities (XSS, injection) before using.

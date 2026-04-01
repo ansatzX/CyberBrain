@@ -1,37 +1,16 @@
 ---
 name: kimi-cli
-description: Wield Kimi CLI as a powerful auxiliary tool for AI-assisted coding, agent tasks, ACP server, and web interface
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Grep
-  - Glob
-  - AskUserQuestion
+description: Use when the user asks to run Kimi CLI in non-interactive mode or references Kimi for AI-assisted coding or agent tasks.
 ---
 
-# Kimi CLI Skill Guide (v1.27.0)
-
-## When to Use Kimi
-
-| Use Case | Why Kimi |
-| --- | --- |
-| AI-assisted coding | Interactive terminal agent with file editing |
-| Session resumption | Continue work with `--continue` or `--session` |
-| Non-interactive mode | `--print` for batch operations (implies --yolo) |
-| ACP server | `kimi acp` for editor integration |
-| Web interface | `kimi web` for browser-based interaction |
-| Built-in agents | Default and Okabe agents available |
-
-**When NOT to use**: Simple quick tasks (overhead not worth it), interactive refinement where immediate feedback is needed.
+# Kimi CLI Skill Guide
 
 ## Running a Task
-
 1. Verify installation: `command -v kimi`
-2. Select the mode required for the task; default to interactive unless non-interactive is needed.
+2. Select the mode required for the task; default to `--print` mode for non-interactive use.
 3. **Always use `AskUserQuestion` before using `-y, --yolo, --yes` or `--print` modes (they auto-approve actions).**
 4. Assemble the command with the appropriate options:
-   - `-p, --prompt, --command <text>` - User prompt to the agent
+   - `-p, --prompt, --command <text>` - User prompt to the agent (required for non-interactive)
    - `-C, --continue` - Continue previous session for working directory
    - `-S, --session <id>` - Session ID to resume
    - `-m, --model <model>` - LLM model to use
@@ -41,59 +20,53 @@ allowed-tools:
    - `-w, --work-dir <directory>` - Working directory for the agent
    - `--add-dir <directory>` - Add additional directory to workspace scope
    - `--agent <default|okabe>` - Builtin agent specification
-   - `--thinking, --no-thinking` - Enable/disable thinking mode
-   - `kimi acp` - Run as ACP server
-   - `kimi web` - Run web interface
-   - `kimi mcp` - Manage MCP server configurations
-5. **Important**: By default, append `2>/dev/null` to all `kimi` commands to suppress thinking tokens (stderr). Only show stderr if the user explicitly requests to see thinking tokens or if debugging is needed.
+5. **IMPORTANT**: By default, append `2>/dev/null` to all `kimi` commands to suppress stderr noise. Only show stderr if the user explicitly requests it or if debugging is needed.
+6. Run the command, capture stdout/stderr (filtered as appropriate), and summarize the outcome for the user.
 
 ### Quick Reference
+| Use case | Command pattern |
+| --- | --- |
+| Non-interactive print mode | `kimi --print --prompt "prompt" 2>/dev/null` |
+| Quiet mode (final msg only) | `kimi --quiet --prompt "prompt" 2>/dev/null` |
+| Continue last session | `kimi --print --continue --prompt "follow-up" 2>/dev/null` |
+| Resume specific session | `kimi --print --session <id> --prompt "prompt" 2>/dev/null` |
+| Yolo mode (auto-approve) | `kimi --print --yolo --prompt "prompt" 2>/dev/null` |
+| With specific model | `kimi --print --model <model> --prompt "prompt" 2>/dev/null` |
+| Additional directory | `kimi --print --add-dir /path --prompt "prompt" 2>/dev/null` |
+| Okabe agent | `kimi --print --agent okabe --prompt "prompt" 2>/dev/null` |
 
-| Use case | Mode | Command pattern |
+### Modes
+| Mode | Description | Use Case |
 | --- | --- | --- |
-| Interactive mode | interactive | `kimi` |
-| With prompt | prompt | `kimi --prompt "your prompt"` |
-| Non-interactive print mode | print | `kimi --print --prompt "prompt" 2>/dev/null` |
-| Quiet mode (final msg only) | quiet | `kimi --quiet --prompt "prompt" 2>/dev/null` |
-| Continue session | resume | `kimi --continue` |
-| Resume specific session | resume-id | `kimi --session <session-id>` |
-| Yolo mode (auto-approve) | yolo | `kimi --yolo --prompt "prompt" 2>/dev/null` |
-| With specific model | model | `kimi --model <model> --prompt "prompt" 2>/dev/null` |
-| Additional directory | add-dir | `kimi --add-dir /path/to/project` |
-| Okabe agent | okabe | `kimi --agent okabe` |
-| ACP server | acp | `kimi acp` |
-| Web interface | web | `kimi web` |
+| `--print` | Non-interactive, auto-approves | Batch operations, scripting |
+| `--quiet` | Non-interactive, only final output | Clean output for scripts |
+| `--yolo` | Auto-approve all actions | Full access (use with caution) |
 
 ### Example Commands
 
 ```bash
-# Interactive mode
-kimi
-
-# With a prompt
-kimi --prompt "Fix the bug in src/main.py"
-
 # Non-interactive print mode (auto-approves)
 kimi --print --prompt "Refactor the utils module" 2>/dev/null
 
-# Continue last session
-kimi --continue
+# Quiet mode (only final message)
+kimi --quiet --prompt "Fix the bug in src/main.py" 2>/dev/null
 
-# With yolo mode (auto-approve everything)
-kimi --yolo --prompt "Add tests to the project" 2>/dev/null
+# Continue last session
+kimi --print --continue --prompt "What else can you improve?" 2>/dev/null
+
+# With specific model and okabe agent
+kimi --print --agent okabe --model moonshot-v1-auto --prompt "Analyze codebase" 2>/dev/null
 
 # If redirection fails, wrap in bash -lc
 bash -lc 'kimi --print --prompt "prompt" 2>/dev/null'
 ```
 
 ## Following Up
-
 - After every `kimi` command, immediately use `AskUserQuestion` to confirm next steps, collect clarifications, or decide whether to resume with `--continue`.
 - When resuming, the session automatically uses the same model and agent from the original session.
 - Restate the chosen model and agent when proposing follow-up actions.
 
 ## Error Handling
-
 - Stop and report failures whenever `kimi --version` or a `kimi` command exits non-zero; request direction before retrying.
 - Before you use high-impact flags (`--yolo`, `--yes`, `--print`) ask the user for permission using AskUserQuestion unless it was already given.
 - When output includes warnings or partial results, summarize them and ask how to adjust using `AskUserQuestion`.
