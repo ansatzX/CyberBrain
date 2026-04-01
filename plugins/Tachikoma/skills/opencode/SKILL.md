@@ -1,61 +1,67 @@
 ---
 name: opencode
-description: Use when the user asks to run OpenCode CLI (codex exec, codex resume) or references OpenCode for AI-assisted coding, TUI, or agent-based development
-allowed-tools:
-  - Bash
-  - Read
-  - Write
-  - Grep
-  - Glob
-  - AskUserQuestion
+description: Use when the user asks to run OpenCode CLI in non-interactive mode (opencode run) or references OpenCode for AI-assisted coding tasks.
 ---
 
-# OpenCode Skill Guide (v1.3.0)
-
-## When to Use OpenCode
-
-| Use Case | Why OpenCode |
-| --- | --- |
-| AI-assisted coding | Interactive TUI interface for natural coding flow |
-| Agent-based development | ACP (Agent Client Protocol) support |
-| GitHub PR integration | `opencode pr` for PR review and modification |
-| Session management | Resume sessions with `--continue` or `--session` |
-| Model switching | Multiple AI providers and models supported |
-
-**When NOT to use**: Simple quick tasks (overhead not worth it), interactive refinement where immediate feedback is needed.
+# OpenCode Skill Guide
 
 ## Running a Task
-
 1. Verify installation: `command -v opencode`
-2. Select the mode required for the task; default to interactive TUI unless non-interactive is needed.
-3. **Always use `AskUserQuestion` before starting interactive sessions for simple tasks.**
+2. Select the agent required for the task; default to `build` agent unless read-only analysis is needed.
+3. **Always use `AskUserQuestion` before using the `build` agent for write operations.**
 4. Assemble the command with the appropriate options:
-   - `-m, --model <provider/model>` - Model selection
+   - `-m, --model <provider/model>` - Model to use
    - `-c, --continue` - Continue the last session
-   - `-s, --session <id>` - Session id to continue
-   - `--prompt <prompt>` - Prompt to use
-   - `--agent <agent>` - Agent to use
-5. **Important**: For TUI mode, inform the user it will launch an interactive interface.
+   - `-s, --session <id>` - Session ID to continue
+   - `--agent <agent>` - Agent to use (`build` for full access, `plan` for read-only)
+   - `-f, --file <files...>` - File(s) to attach
+5. **IMPORTANT**: By default, append `2>/dev/null` to all `opencode run` commands to suppress stderr noise. Only show stderr if the user explicitly requests it or if debugging is needed.
+6. Run the command, capture stdout/stderr (filtered as appropriate), and summarize the outcome for the user.
 
 ### Quick Reference
+| Use case | Command pattern |
+| --- | --- |
+| Full access (write/edit/bash) | `opencode run --agent build "prompt" 2>/dev/null` |
+| Read-only analysis | `opencode run --agent plan "prompt" 2>/dev/null` |
+| Continue last session | `opencode run --continue "follow-up" 2>/dev/null` |
+| Continue specific session | `opencode run --session <id> "prompt" 2>/dev/null` |
+| Use specific model | `opencode run --model anthropic/claude-sonnet-4-20250514 "prompt" 2>/dev/null` |
+| Attach files | `opencode run -f file.py "prompt" 2>/dev/null` |
+| List models | `opencode models` |
+| List sessions | `opencode session list` |
+| List available agents | `opencode agent list` |
 
-| Use case | Mode | Command pattern |
+### Agents
+| Agent | Permissions | Use Case |
 | --- | --- | --- |
-| Interactive TUI | interactive | `opencode [/path/to/project]` |
-| Run with prompt | non-interactive | `opencode run "your prompt here"` |
-| Continue last session | resume | `opencode --continue` |
-| GitHub PR mode | PR | `opencode pr 123` |
-| List models | info | `opencode models [provider]` |
-| Web interface | web | `opencode web` |
+| `build` | Full access: write, edit, bash | Active development, making changes |
+| `plan` | Read-only: no write/edit, bash asks first | Code analysis, planning, exploration |
+
+### Example Commands
+
+```bash
+# Read-only analysis with plan agent
+opencode run --agent plan "Analyze the codebase architecture" 2>/dev/null
+
+# Full access with build agent
+opencode run --agent build "Fix the bug in main.py" 2>/dev/null
+
+# Continue last session
+opencode run --continue "What else can you improve?" 2>/dev/null
+
+# Use specific model
+opencode run --model anthropic/claude-sonnet-4-20250514 "Refactor this code" 2>/dev/null
+
+# If redirection fails, wrap in bash -lc
+bash -lc 'opencode run --agent build "prompt" 2>/dev/null'
+```
 
 ## Following Up
-
 - After every `opencode run` command, immediately use `AskUserQuestion` to confirm next steps, collect clarifications, or decide whether to resume with `--continue`.
-- When resuming, restate that the session will continue from where it left off.
-- Restate the chosen model and mode when proposing follow-up actions.
+- When resuming, the session automatically uses the same model and agent from the original session.
+- Restate the chosen model and agent when proposing follow-up actions.
 
 ## Error Handling
-
 - Stop and report failures whenever `opencode --version` or an `opencode` command exits non-zero; request direction before retrying.
 - Use `opencode debug` for troubleshooting if needed.
 - Always validate OpenCode's output for security vulnerabilities (XSS, injection) before using.
