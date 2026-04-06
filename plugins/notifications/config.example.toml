@@ -1,0 +1,54 @@
+# Notifications Plugin Configuration Example
+# Copy this to ~/.claude/notifications/config.toml and customize
+
+# ──────────────────────────────────────────────────────
+# Global settings
+# ──────────────────────────────────────────────────────
+[global]
+# First reminder delay in seconds
+first_reminder_delay = 120
+# Enable emergency reminder after 1 hour
+enable_emergency_reminder = false
+# Emergency priority (0=normal, 1=high, 2=emergency)
+emergency_priority = 1
+
+# ──────────────────────────────────────────────────────
+# Routing rules: which events go to which backends
+# ──────────────────────────────────────────────────────
+[routes]
+# Permission waiting reminder
+permission_prompt = ["pushover", "slack"]
+# Task completion notification
+task_complete = ["pushover"]
+# Tool execution complete
+tool_complete = ["lark"]
+# Session end
+session_end = ["jenkins"]
+
+# ──────────────────────────────────────────────────────
+# Backend configurations
+# ──────────────────────────────────────────────────────
+
+[backend.pushover]
+enabled = true
+# Credentials from Keychain (pushover_app_token, pushover_iphone_key)
+
+[backend.slack]
+enabled = true
+webhook_url = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
+# Optional: default channel
+channel = "#claude-alerts"
+# Optional: username
+username = "Claude Code"
+
+[backend.lark]
+enabled = true
+webhook_url = "https://open.feishu.cn/open-apis/bot/v2/hook/XXX"
+
+[backend.jenkins]
+enabled = true
+# Jenkins base URL
+url = "https://jenkins.ansatz.work"
+# Job name (will be URL-encoded automatically)
+job = "claude code"
+# Trigger token from Keychain (jenkins_trigger_token)

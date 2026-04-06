@@ -27,9 +27,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from service import cancel_escalation, get_client
+import config
 
 
 def main():
+    # Check if Pushover is enabled
+    if not config.is_pushover_enabled():
+        return
+
     # Read hook input from stdin
     try:
         stdin_data = sys.stdin.read()

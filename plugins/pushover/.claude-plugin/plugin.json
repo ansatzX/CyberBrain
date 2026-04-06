@@ -1,5 +1,0 @@
-{
-  "name": "pushover",
-  "version": "0.0.1",
-  "description": "Pushover notification hooks - get notified when tasks complete or permissions are needed. Requires: python3 and psutil. Install: pip install psutil. Verify: python3 -c 'import psutil; print(psutil.__version__)'"
-}

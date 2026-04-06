@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from service import start_service, register_session
+import config
 
 
 def get_claude_pid() -> int | None:
@@ -56,6 +57,10 @@ def get_claude_pid() -> int | None:
 
 
 def main():
+    # Check if Pushover is enabled
+    if not config.is_pushover_enabled():
+        return
+
     # Read hook input from stdin (not strictly needed, but good practice)
     try:
         stdin_data = sys.stdin.read()

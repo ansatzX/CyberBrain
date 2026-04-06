@@ -1,0 +1,5 @@
+{
+  "name": "notifications",
+  "version": "0.0.1",
+  "description": "Unified notifications and integrations plugin - Pushover notifications + Jenkins triggers. Features: permission escalation reminders, task completion alerts, and Jenkins job triggers. Requires: curl python3 and psutil (optional). Install: pip install psutil."
+}
