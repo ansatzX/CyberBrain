@@ -1,6 +1,6 @@
 ---
 name: calendar
-description: Manage macOS Calendar events. Use when the user asks to check, add, or manage calendar events.
+description: Use when the user asks to check, add, or manage macOS Calendar events.
 ---
 
 # Calendar Skill Guide

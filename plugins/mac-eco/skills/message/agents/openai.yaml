@@ -1,0 +1,4 @@
+interface:
+  display_name: "Message"
+  short_description: "Send iMessage via macOS Messages"
+  default_prompt: "Use $message to draft and send this text message or iMessage after user confirmation."

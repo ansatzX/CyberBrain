@@ -1,6 +1,6 @@
 ---
 name: stickies
-description: Display and read Stickies notes on macOS. Use when the user asks to show notes, create stickies, or read existing stickies.
+description: Use when the user asks to show notes, create stickies, or read existing Stickies notes on macOS.
 ---
 
 # Stickies Skill Guide

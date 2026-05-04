@@ -1,0 +1,4 @@
+interface:
+  display_name: "Whole-Object Responsibility"
+  short_description: "Audit system responsibility chains"
+  default_prompt: "Use $whole-object-responsibility to audit this complex system: identify the whole object, state/control chain, bypass paths, failure visibility, productive function, and responsibility owner."

@@ -4,7 +4,7 @@
     "name": "ansatz"
   },
   "metadata": {
-    "description": "Custom Claude Code tools, agents, skills, and hooks",
+    "description": "Custom Claude Code and Codex tools, agents, skills, and hooks",
     "pluginRoot": "./plugins"
   },
   "plugins": [
@@ -15,21 +15,15 @@
       "version": "0.0.1"
     },
     {
-      "name": "Tachikoma",
-      "source": "./plugins/Tachikoma",
+      "name": "tachikoma",
+      "source": "./plugins/tachikoma",
       "description": "Skills for interacting with other Agent tools - Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI",
       "version": "0.0.1"
     },
     {
-      "name": "pushover",
-      "source": "./plugins/pushover",
-      "description": "Pushover notification hooks - get notified when tasks complete or permissions are needed",
-      "version": "0.0.1"
-    },
-    {
-      "name": "mac-eco",
-      "source": "./plugins/mac-eco",
-      "description": "macOS integration - speak, send iMessages, emails, manage calendar, and display stickies",
+      "name": "brain",
+      "source": "./plugins/brain",
+      "description": "Ansatz Brain skills for epistemic audits, calculation boundaries, and whole-object responsibility",
       "version": "0.0.1"
     }
   ]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex"
+  short_description: "Run Codex CLI agent sessions"
+  default_prompt: "Use $codex to run a Codex CLI session for this code analysis, review, or editing task."

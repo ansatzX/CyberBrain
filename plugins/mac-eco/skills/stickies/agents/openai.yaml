@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stickies"
+  short_description: "Read and create macOS Stickies"
+  default_prompt: "Use $stickies to create, show, or read macOS Stickies notes for this request."

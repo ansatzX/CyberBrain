@@ -1,0 +1,4 @@
+interface:
+  display_name: "Epistemic Systems Audit"
+  short_description: "Audit scientific claims and proxies"
+  default_prompt: "Use $epistemic-systems-audit to review this claim or paper: identify the scientific question, object, proxy, evidence, failure conditions, responsibility chain, and the narrowest supported claim."

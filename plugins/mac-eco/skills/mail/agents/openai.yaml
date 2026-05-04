@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mail"
+  short_description: "Send email with macOS Mail"
+  default_prompt: "Use $mail to draft and send this email through the macOS Mail app after user confirmation."

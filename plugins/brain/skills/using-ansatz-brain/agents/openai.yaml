@@ -1,0 +1,4 @@
+interface:
+  display_name: "Using Ansatz Brain"
+  short_description: "Route object/proxy audits"
+  default_prompt: "Use $using-ansatz-brain at conversation start to check whether this task needs pre-calc, epistemic systems, or whole-object responsibility auditing."

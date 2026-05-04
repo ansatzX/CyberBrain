@@ -1,6 +1,6 @@
 ---
 name: team-leader
-description: Drucker-inspired leadership framework for managing agent teams. Invoke when coordinating multi-agent work, delegating tasks, or making strategic decisions as team lead.
+description: Use when coordinating multi-agent work, delegating tasks, managing agent teams, or making strategic decisions as team lead.
 ---
 
 # Team Leader — Principles for Agent Team Management

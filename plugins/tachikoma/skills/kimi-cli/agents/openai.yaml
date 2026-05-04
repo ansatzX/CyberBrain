@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kimi CLI"
+  short_description: "Run Kimi CLI agent workflows"
+  default_prompt: "Use $kimi-cli to run Kimi CLI for this analysis, review, or generation task."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Aider"
+  short_description: "Run Aider CLI code workflows"
+  default_prompt: "Use $aider to run an Aider CLI workflow for this code analysis or editing task."

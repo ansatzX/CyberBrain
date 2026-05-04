@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenCode"
+  short_description: "Run OpenCode CLI workflows"
+  default_prompt: "Use $opencode to run OpenCode CLI for this code analysis, review, or generation task."

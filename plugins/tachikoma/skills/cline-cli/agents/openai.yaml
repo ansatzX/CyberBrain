@@ -1,0 +1,4 @@
+interface:
+  display_name: "Cline CLI"
+  short_description: "Run Cline CLI agent workflows"
+  default_prompt: "Use $cline-cli to run a Cline CLI workflow for this code analysis or automation task."

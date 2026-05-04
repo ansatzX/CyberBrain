@@ -1,0 +1,27 @@
+{
+  "name": "tachikoma",
+  "version": "0.0.3",
+  "description": "Skills for interacting with other Agent tools - Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI",
+  "author": {
+    "name": "ansatz"
+  },
+  "repository": "https://github.com/ansatzX/CyberBrain",
+  "keywords": [
+    "codex",
+    "gemini",
+    "ai-cli",
+    "agents"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "tachikoma",
+    "shortDescription": "Skills for coordinating AI CLI tools",
+    "longDescription": "Skills for working with Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI.",
+    "developerName": "ansatz",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Skills",
+      "Shell"
+    ]
+  }
+}

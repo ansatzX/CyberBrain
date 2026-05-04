@@ -1,0 +1,26 @@
+{
+  "name": "brain",
+  "version": "0.0.1",
+  "description": "Ansatz Brain skills for epistemic audits, calculation boundaries, and whole-object responsibility",
+  "author": {
+    "name": "ansatz"
+  },
+  "repository": "https://github.com/ansatzX/CyberBrain",
+  "keywords": [
+    "epistemics",
+    "scientific-claims",
+    "workflows",
+    "responsibility"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Brain",
+    "shortDescription": "Epistemic and responsibility audit skills",
+    "longDescription": "Ansatz Brain skills for auditing scientific claims, calculation boundaries, workflows, automation, and whole-object responsibility.",
+    "developerName": "ansatz",
+    "category": "Productivity",
+    "capabilities": [
+      "Skills"
+    ]
+  }
+}

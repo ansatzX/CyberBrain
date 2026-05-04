@@ -1,0 +1,44 @@
+{
+  "name": "CyberBrain",
+  "interface": {
+    "displayName": "CyberBrain"
+  },
+  "plugins": [
+    {
+      "name": "awesome-agent-select",
+      "source": {
+        "source": "local",
+        "path": "./plugins/awesome-agent-select"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
+      "name": "tachikoma",
+      "source": {
+        "source": "local",
+        "path": "./plugins/tachikoma"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    },
+    {
+      "name": "brain",
+      "source": {
+        "source": "local",
+        "path": "./plugins/brain"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

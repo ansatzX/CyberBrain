@@ -1,6 +1,6 @@
 ---
 name: notification
-description: Send push notifications to user's phone via Pushover. Use when the user asks to be notified, alerted, or reminded about something.
+description: Use when the user asks to be notified, alerted, or reminded via push notification.
 ---
 
 # Notification Skill Guide

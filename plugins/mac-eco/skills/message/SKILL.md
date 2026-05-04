@@ -1,6 +1,6 @@
 ---
 name: message
-description: Send iMessages via macOS Messages app. Use when the user asks to send a text message or iMessage.
+description: Use when the user asks to send a text message or iMessage via the macOS Messages app.
 ---
 
 # Message Skill Guide

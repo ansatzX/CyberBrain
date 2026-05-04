@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kiro CLI"
+  short_description: "Run Kiro CLI agent workflows"
+  default_prompt: "Use $kiro-cli to run Kiro CLI for this code analysis or automation task."

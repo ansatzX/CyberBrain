@@ -1,200 +1,221 @@
 # CyberBrain
+
 <div align="center">
   <img src="assset/GIS.jpg" alt="Ghost in the Shell" width="400"/>
-</div>
-
-## Ghost in the Shell
-<div align="center">
+  <br/>
   <img src="assset/CyberBrain.png" alt="CyberBrain" width="400"/>
 </div>
-" The net is vast and infinite. "
 
-A cyberbrain works, "similar" to a human brain, to make the body respond to the brain it shoots off an electrical signal through a mass of wiring, (similar to nerves) that's the basics on motion. The thought process is (in theory) close to the same as a fully organic brain.
+CyberBrain is a local plugin marketplace for Claude Code and Codex. It packages shared skills, commands, and agent definitions used across development workflows.
 
-What constitutes a "Ghost" (the soul, the consciousness) when the mind can be digitized, transferred, and copied? What defines an individual when memories can be fabricated, and identity becomes fluid in the network?
+## Active Plugins
 
-This repository enhances the Claude Code plugin system, containing agents, skills, commands, and notification hooks. All these tools function as my CyberBrain — a digital consciousness navigating the wired world.
+| Plugin | Contents | Status |
+|--------|----------|--------|
+| `awesome-agent-select` | Prompted subagents for review, QA, API docs, performance, tooling, and TypeScript work | Published |
+| `tachikoma` | Skills and commands for coordinating AI CLI tools such as Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI | Published |
+| `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
 
-**Operational theater:** Apple EcoSystem (MacOS, Apple Watch, iPhone). Secondary compatibility confirmed with XiaoMi EcoSystem.
+## Disabled Plugins
 
-**Protocol:** Maintain concise and precise communication to minimize net bandwidth usage.
+These plugins are under refactoring and are not published in the Claude Code or Codex marketplaces:
 
-## Required Gear
+- `mac-eco`
+- `notifications`
 
-1. **Tachikoma** units must be operational. Verify versions:
-   - Codex: `codex -V` (0.79.0+)
-   - Gemini: `gemini -v` (0.23.0+)
-   - Additional units: OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, Kimi CLI
-2. **jq** must be available. Verify with `jq -V` (1.8.1+). Install via `brew install jq` if missing.
+## Requirements
 
-## System Integration
+- Claude Code, for `.claude-plugin` marketplace use
+- Codex CLI 0.79.0 or newer, for `.codex-plugin` marketplace use
+- `jq` 1.8.1 or newer for local validation
+- Optional CLI tools used by `tachikoma`: Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, Kimi CLI
+- Keep all CLI tools used by `tachikoma` updated to their latest available release before relying on the corresponding skill.
 
-### Tactical Modules
+## Claude Code Installation
 
-| Module | Description |
-|--------|-------------|
-| **awesome-agent-select** | Collection of useful prompted subagents for code review, API docs, QA, and more. Variant from: [awesome-claude-code-subagents](https://github.com/VoltAgent/awesome-claude-code-subagents) |
-| **Tachikoma** | Skills for interacting with other Agent tools - Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI. |
-| **pushover** | Pushover notification hooks - get notified when tasks complete or permissions are needed |
-| **mac-eco** | macOS integration - speak, send iMessages, emails, manage calendar, and display stickies |
-
-### Access the Marketplace
+Clone the repository and add it as a Claude Code marketplace:
 
 ```bash
-mkdir -p ~/soft/ && cd soft && git clone https://github.com/ansatzX/CyberBrain.git
-claude plugin marketplace add ~/soft/Cyberbrain
+mkdir -p ~/soft
+git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
+claude plugin marketplace add ~/soft/CyberBrain
 ```
 
-### Load Modules
-
-Enter the Claude interface and use `/plugin` to navigate to the marketplace and install each module.
+Install the active plugins:
 
 ```bash
-# Install all tactical modules
 claude plugin install awesome-agent-select@CyberBrain
-claude plugin install Tachikoma@CyberBrain
-claude plugin install pushover@CyberBrain
-claude plugin install mac-eco@CyberBrain
+claude plugin install tachikoma@CyberBrain
+claude plugin install brain@CyberBrain
 ```
 
-### Neural Link Configuration (Pushover)
-
-Execute one-time setup to store Pushover credentials in secure macOS Keychain storage:
-
-```bash
-./tools/setup-service.sh
-```
-
-Acquire credentials from [pushover.net](https://pushover.net/).
-
-### Quick Deployment Protocol
-
-For automated deployment, paste this into a fresh Claude Code session:
-
-```
-Install and configure by following the instructions in README.md of git repo https://github.com/ansatzX/CyberBrain.git
-```
-
-### Operational Examples
-
-#### Tachikoma Unit Deployment:
-```bash
-Use codex and gemini-cli to review uncommitted changes.
-```
-```bash
-Check this with github copilot
-```
-```bash
-Tachikoma:collab-fix Fix the bug showing here as ### Bug 3
-```
-
-#### macOS Ecosystem Interface:
-```bash
-After you finish, use mac to say "All done" and a brief summary of what you did.
-```
-```bash
-Use imessage to send me (my email address/phone number) a message "Task complete" with the summary.
-```
-```bash
-Can you add this to my stickies?
-```
-```bash
-Use mac-eco to generate today's calendar schedule with the information on my stickies.
-```
-
-## Tactical Modules
-
-### Tachikoma
-<div align="center">
-  <img src="assset/Tachikoma.png" alt="Tachikoma" width="300"/>
-</div>
-
-**They normally operate as independent units and receive orders from human agents, but they can also be directly piloted from a cockpit in their abdomen.**
-
-AI cli toolset, integrating various AI programming assistants for parallel operations. Individual units that develop unique personalities through shared experiences.
-
-| Unit | Designation |
-|------|-------------|
-| codex | OpenAI Codex CLI integration |
-| gemini-cli | Google Gemini CLI integration |
-| opencode | OpenCode CLI integration |
-| qwen | Qwen CLI integration |
-| cline-cli | Cline CLI integration |
-| aider | Aider CLI integration |
-| github-copilot-cli | GitHub Copilot CLI integration |
-| kiro-cli | Kiro CLI integration |
-| kimi-cli | Kimi CLI integration |
-
-Here openai provides their offical plugin [codex-plugin-cc](https://github.com/openai/codex-plugin-cc)
-
-**Protocol:** `/Tachikoma:collab-fix` — Multi-agent collaborative fix protocol
-
-### Specialized Agents (awesome-agent-select)
-
-Individual consciousnesses specialized for various operational scenarios:
-
-- `api-documenter` - API documentation specialist
-- `code-reviewer` - Code quality and security analyst
-- `llm-architect` - Neural network system architect
-- `mcp-developer` - MCP server development specialist
-- `performance-engineer` - System optimization expert
-- `qa-expert` - Quality assurance operator
-- `test-automator` - Test automation engineer
-- `tooling-engineer` - Developer tooling specialist
-- `typescript-pro` - TypeScript combat specialist
-
-
-### Emergency Communication (pushover)
-
-Push notification system via Pushover with automatic escalation protocol. A Ghost in the network, alerting you when your attention is required.
-
-**Skill:** `notification` — Send on-demand push notifications to your neural link
-
-**Auto-Response:** Automatic permission escalation — receive alerts when Claude awaits authorization (60s normal, 1hr emergency)
-
-Refer to [pushover/README.md](plugins/pushover/README.md) for architecture details and configuration.
-
-### Environmental Interface (mac-eco)
-
-macOS native application integration for interacting with the physical world through digital systems.
-
-| Feature | Command | Description |
-|---------|---------|-------------|
-| Voice Synthesis | `say` | Auditory communication |
-| iMessage | `imessage.sh` | Secure message transmission |
-| Email | `imail.sh` | Electronic correspondence via Mail.app |
-| Calendar | `ical.sh` | Chronological management (reads all, writes to "Agent" calendar) |
-| Stickies | `iStickies.sh` | Note archival with markdown support |
-
-## Uninstallation Protocol
+Uninstall:
 
 ```bash
 claude plugin uninstall awesome-agent-select@CyberBrain
-claude plugin uninstall Tachikoma@CyberBrain
-claude plugin uninstall pushover@CyberBrain
-claude plugin uninstall mac-eco@CyberBrain
+claude plugin uninstall tachikoma@CyberBrain
+claude plugin uninstall brain@CyberBrain
 ```
 
-## Timeout Configuration
+## Codex Installation
 
-For optimal performance during extended dives into the net:
+Clone the repository, then expose its Codex marketplace at the user-level Codex plugin root:
 
-Add to `~/.claude/settings.json` to extend bash timeout parameters:
+```bash
+mkdir -p ~/soft ~/.agents/plugins/plugins
+git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
 
-```json
-{
-  "env": {
-    "BASH_DEFAULT_TIMEOUT_MS": "600000",
-    "BASH_MAX_TIMEOUT_MS": "3600000"
-  }
-}
+ln -sfn ~/soft/CyberBrain/.agents/plugins/marketplace.json ~/.agents/plugins/marketplace.json
+ln -sfn ~/soft/CyberBrain/plugins/awesome-agent-select ~/.agents/plugins/plugins/awesome-agent-select
+ln -sfn ~/soft/CyberBrain/plugins/tachikoma ~/.agents/plugins/plugins/tachikoma
+ln -sfn ~/soft/CyberBrain/plugins/brain ~/.agents/plugins/plugins/brain
 ```
 
-| Setting | Value | Description |
-|---------|-------|-------------|
-| `BASH_DEFAULT_TIMEOUT_MS` | 600000 | Default timeout: 10 minutes |
-| `BASH_MAX_TIMEOUT_MS` | 3600000 | Maximum timeout: 1 hour |
+Codex reads the marketplace from:
 
+```text
+~/.agents/plugins/marketplace.json
+```
 
+Codex plugin manifests:
 
-**The net is vast and infinite.**
+```text
+~/.agents/plugins/plugins/awesome-agent-select/.codex-plugin/plugin.json
+~/.agents/plugins/plugins/tachikoma/.codex-plugin/plugin.json
+~/.agents/plugins/plugins/brain/.codex-plugin/plugin.json
+```
+
+Every skill includes Codex UI metadata at:
+
+```text
+plugins/<plugin>/skills/<skill>/agents/openai.yaml
+```
+
+## Plugin Layout
+
+```text
+.claude-plugin/marketplace.json        # Claude Code marketplace
+.agents/plugins/marketplace.json       # Codex marketplace
+plugins/
+  awesome-agent-select/
+    .claude-plugin/plugin.json
+    .codex-plugin/plugin.json
+    agents/
+    skills/
+  tachikoma/
+    .claude-plugin/plugin.json
+    .codex-plugin/plugin.json
+    commands/
+    skills/
+  brain/
+    .claude-plugin/plugin.json
+    .codex-plugin/plugin.json
+    skills/
+  mac-eco/                              # disabled, under refactoring
+  notifications/                        # disabled, under refactoring
+```
+
+## Plugin Details
+
+### `tachikoma`
+
+<div align="center">
+  <img src="assset/Tachikoma.png" alt="tachikoma" width="300"/>
+</div>
+
+`tachikoma` provides skills for running and coordinating external AI CLI tools.
+
+Included skills:
+
+- `codex`
+- `gemini-cli`
+- `opencode`
+- `qwen`
+- `cline-cli`
+- `aider`
+- `github-copilot-cli`
+- `kiro-cli`
+- `kimi-cli`
+
+Included commands:
+
+- `collab-fix`
+- `TDD-debug`
+
+#### `tachikoma::codex` and `llm_router`
+
+The `codex` skill supports the Codex profile `llm_router` for routing Codex traffic through [ansatzX/llm_router](https://github.com/ansatzX/llm_router). `llm-router` adapts Codex requests and responses for non-OpenAI providers while Codex continues to execute local tools.
+
+Supported `tachikoma::codex` profile policy:
+
+| Profile | Model policy |
+|---------|--------------|
+| default profile | `gpt-5.4 high` or `gpt-5.5 high`; fallback to `gpt-5.3-codex` when no model preference is given |
+| `llm_router` | `deepseek-v4-pro xhigh` only |
+| `aihubmix` | `gpt-5.4 high` or `gpt-5.5 high` |
+
+Configure `llm_router`:
+
+```bash
+git clone https://github.com/ansatzX/llm_router.git ~/soft/llm_router
+cd ~/soft/llm_router
+uv sync
+export DEEPSEEK_API_KEY="sk-..."
+mkdir -p ~/.codex
+cp llm_router.json ~/.codex/llm_router.json
+```
+
+Merge the `llm_router` provider/profile settings from `codex.config.example.toml` into `~/.codex/config.toml`, then start the router:
+
+```bash
+uv run llm-router serve
+```
+
+Use it through Codex or through `tachikoma::codex`:
+
+```bash
+codex -p llm_router
+codex exec -p llm_router -m deepseek-v4-pro --config model_reasoning_effort="xhigh" --skip-git-repo-check -
+```
+
+### `brain`
+
+`brain` provides audit-oriented skills for scientific, technical, and workflow reasoning.
+
+Included skills:
+
+- `using-ansatz-brain`
+- `think-before-you-calculate`
+- `epistemic-systems-audit`
+- `whole-object-responsibility`
+
+### `awesome-agent-select`
+
+`awesome-agent-select` provides prompted subagents.
+
+Included agents:
+
+- `api-documenter`
+- `code-reviewer`
+- `llm-architect`
+- `mcp-developer`
+- `performance-engineer`
+- `qa-expert`
+- `test-automator`
+- `tooling-engineer`
+- `typescript-pro`
+
+## Validation
+
+Validate marketplace and plugin JSON:
+
+```bash
+jq -e . .claude-plugin/marketplace.json .agents/plugins/marketplace.json plugins/*/.claude-plugin/plugin.json plugins/*/.codex-plugin/plugin.json
+```
+
+Check skill metadata coverage:
+
+```bash
+find plugins -path '*/skills/*/SKILL.md' -type f | wc -l
+find plugins -path '*/skills/*/agents/openai.yaml' -type f | wc -l
+```

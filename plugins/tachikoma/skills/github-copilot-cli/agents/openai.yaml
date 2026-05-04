@@ -1,0 +1,4 @@
+interface:
+  display_name: "GitHub Copilot CLI"
+  short_description: "Run GitHub Copilot CLI workflows"
+  default_prompt: "Use $github-copilot-cli to run GitHub Copilot CLI for this code analysis or review task."

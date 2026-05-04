@@ -1,0 +1,4 @@
+interface:
+  display_name: "Qwen"
+  short_description: "Run Qwen CLI agent workflows"
+  default_prompt: "Use $qwen to run Qwen CLI for this code analysis, review, or generation task."

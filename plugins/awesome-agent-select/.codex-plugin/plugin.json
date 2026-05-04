@@ -1,0 +1,26 @@
+{
+  "name": "awesome-agent-select",
+  "version": "0.0.1",
+  "description": "Collection of useful prompted subagents for code review, API docs, QA, and more",
+  "author": {
+    "name": "ansatz"
+  },
+  "repository": "https://github.com/ansatzX/CyberBrain",
+  "keywords": [
+    "agents",
+    "subagents",
+    "code-review",
+    "qa"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Awesome Agent Select",
+    "shortDescription": "Prompted subagents for engineering workflows",
+    "longDescription": "Collection of prompted subagents for code review, API documentation, QA, testing, tooling, and performance work.",
+    "developerName": "ansatz",
+    "category": "Productivity",
+    "capabilities": [
+      "Agents"
+    ]
+  }
+}

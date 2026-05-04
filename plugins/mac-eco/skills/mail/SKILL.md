@@ -1,6 +1,6 @@
 ---
 name: mail
-description: Send emails via macOS Mail app. Use when the user asks to send an email.
+description: Use when the user asks to send an email via the macOS Mail app.
 ---
 
 # Mail Skill Guide

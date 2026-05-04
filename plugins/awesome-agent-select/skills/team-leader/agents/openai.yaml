@@ -1,0 +1,4 @@
+interface:
+  display_name: "Team Leader"
+  short_description: "Coordinate multi-agent work"
+  default_prompt: "Use $team-leader to coordinate this multi-agent task: decide responsibilities, delegation boundaries, and review checkpoints."

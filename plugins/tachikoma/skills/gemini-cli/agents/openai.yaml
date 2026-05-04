@@ -1,0 +1,4 @@
+interface:
+  display_name: "Gemini CLI"
+  short_description: "Run Gemini CLI agent workflows"
+  default_prompt: "Use $gemini-cli to run Gemini CLI for this review, analysis, web research, or generation task."
