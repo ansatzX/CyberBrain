@@ -1,68 +1,130 @@
 ---
 name: using-ansatz-brain
-description: "Use when starting any conversation - checks whether scientific/technical claims, calculations, benchmarks, papers, agents, workflows, automation, infrastructure, complex systems, or responsibility-chain skills apply before answering."
+description: "Use at the start of every conversation — the top-level skill controller. Routes to the universal whole-object-responsibility lens, domain brain skills, and external skill arsenals including superpowers."
 ---
 
-# Using Ansatz Brain
+<SUBAGENT-STOP>
+If you were dispatched as a subagent to execute a specific task, skip this skill.
+</SUBAGENT-STOP>
 
 <EXTREMELY-IMPORTANT>
-At the start of every conversation, check whether any Ansatz Brain skill applies before answering.
+This skill is the top-level controller. It activates at the start of every conversation.
 
-If there is even a small chance the task involves a scientific claim, technical claim, benchmark, metric, dataset, calculation, workflow, agent, automation, complex system, or responsibility chain, route to the appropriate specialized skill before answering.
+Ansatz Brain is the default-equipped skill arsenal. It does not replace external skill sets like superpowers — it routes to them. It controls which skills activate and in what order, but never modifies those skills.
 
-Do not rationalize that the request is "just a simple question." If the user is asking what a result means, what a system does, whether a claim is true, or whether to run a tool, this router applies.
+At the start of every conversation, invoke this skill. It will route you to:
+- `brain:whole-object-responsibility` (always — the universal epistemic foundation)
+- Domain brain skills as needed
+- External skill arsenals (superpowers, etc.) as needed
 
-If none of these apply, say nothing about this router and answer normally.
+This does not conflict with `superpowers:using-superpowers`. Both can and should coexist. Ansatz Brain triggers first and decides the routing; superpowers executes within that framework.
 </EXTREMELY-IMPORTANT>
 
-## Overview
+## Instruction Priority
 
-This is the router for the Ansatz-style object/proxy/responsibility skills. It exists to prevent the agent from accepting nouns, metrics, workflows, or generated outputs as understanding.
+1. **User's explicit instructions** — highest priority. Always.
+2. **Ansatz Brain** — top-level skill controller. Decides which skills to route to.
+3. **Routed skills** (brain sub-skills, superpowers, etc.) — activated by this controller.
+4. **Default system prompt** — lowest priority.
 
-**Core principle:** first identify the object, boundary, proxy, evidence, failure path, responsibility owner, and productive function; then choose the specialized skill.
+If a user instruction conflicts with a routed skill, the user wins. Ansatz Brain provides the lens and routing; it does not override the user's intent.
 
-## Trigger Words
+## Architecture
 
-Use this router when the request includes or implies any of these:
+Ansatz Brain is the controller. It owns a set of built-in domain skills and routes to external skill arsenals. It never modifies external skills — it only decides when to invoke them.
 
-- Paper, article, abstract, review, claim, evidence, result, conclusion.
-- AI4S, AI for Science, scientific discovery, understanding, reasoning, autonomy.
-- Benchmark, leaderboard, dataset, metric, accuracy, MAE, RMSE, AUROC, pass@k, loss, score.
-- Simulation, calculation, DFT, MD, DMRG, tensor network, model training, optimization, screening, generation.
-- Agent, tool use, workflow, pipeline, automation, orchestration, end-to-end, report generation.
-- HPC, scheduler, Slurm, cgroup, storage, database, infrastructure, platform, distributed system.
-- Protocol, responsibility, ownership, failure mode, bypass, hidden state, reproducibility, validation.
+```
+ansatz-brain (top-level controller)
+    |
+    +-- brain:whole-object-responsibility  <-- ALWAYS ACTIVE
+    |       Universal epistemic foundation.
+    |       Do not accept names, rhetoric, labels, or surface concepts
+    |       as understanding. Look past them to how things actually operate.
+    |
+    +-- Brain domain skills (built-in):
+    |       brain:think-before-you-calculate   -- calc, training, benchmarks
+    |       brain:epistemic-systems-audit      -- papers, claims, evidence
+    |
+    +-- External skill arsenals (routed, never modified):
+            superpowers:using-superpowers         -- superpowers self-routing
+            ... and any other installed skill set
+```
+
+## Relationship with Superpowers
+
+`superpowers:using-superpowers` also activates at the start of every conversation. This does not create a conflict — the two skills occupy different roles:
+
+1. **Ansatz Brain triggers first.** It activates `brain:whole-object-responsibility` as the universal epistemic foundation and decides whether domain brain skills are needed.
+2. **When the task needs superpowers workflows** (brainstorming, debugging, TDD, etc.), ansatz-brain routes to `superpowers:using-superpowers`.
+3. **Superpowers handles its own internal routing** — ansatz-brain never reaches into superpowers to pick individual skills. It hands off to `superpowers:using-superpowers` and superpowers distributes internally.
+
+Both skills are active. Ansatz Brain owns the epistemic lens and the decision of *whether* to invoke superpowers; superpowers owns its own workflow distribution.
+
+## The Rule
+
+**Invoke this skill at the start of every conversation. It decides what other skills to activate.**
+
+`brain:whole-object-responsibility` is always active as the universal foundation. It exists to prevent a single class of error: accepting a name, label, narrative, or surface appearance as understanding. Writing code, reading code, reading papers, debugging, designing — all of these involve forming judgments about how things work. The foundation lens applies to all of them.
+
+Beyond the foundation, this controller routes to domain skills and external arsenals based on task type.
 
 ## Router Decision
 
-Choose the narrowest applicable skill. If multiple apply, use them in this order.
-
 ```text
-1. About to run a calculation/tool/workflow/search/benchmark?
-   -> use think-before-you-calculate
+0. (ALWAYS) brain:whole-object-responsibility
+   What is the real object? How does it actually work?
+   What names, labels, or narratives am I accepting at face value?
 
-2. Interpreting a paper, AI4S result, benchmark, dataset, metric, model output, or scientific claim?
-   -> use epistemic-systems-audit
+1. Task involves running calculations, training, benchmarks, simulations, workflows?
+   -> brain:think-before-you-calculate
 
-3. Evaluating an agent OS, workflow system, infrastructure, protocol, division of labor, hidden state, bypass path, or responsibility gap?
-   -> use whole-object-responsibility
+2. Task involves evaluating a paper, AI4S result, scientific claim, or benchmark evidence?
+   -> brain:epistemic-systems-audit
+
+3. Task needs superpowers workflows (brainstorming, debugging, TDD, planning, etc.)?
+   -> superpowers:using-superpowers
 ```
 
-If unsure, do the minimal fallback below before answering.
+Brain skills and external skills can coexist. A task may activate `brain:whole-object-responsibility` + `brain:think-before-you-calculate` + `superpowers:using-superpowers` simultaneously. The brain skills provide the epistemic lens; the external skills provide the workflow.
+
+## Red Flags
+
+These thoughts mean STOP — you are accepting a label as understanding:
+
+| Thought | Reality |
+|---|---|
+| "This code clearly does X" | You read the name, not the behavior. Trace the actual execution. |
+| "The paper claims to have discovered Y" | A claim is not evidence. Audit proxy, evidence, failure conditions. |
+| "The benchmark score improved, so the model is better" | A proxy improved. That is not object-level understanding. |
+| "The workflow automates the process" | Automation is not discovery. What does each step actually do? |
+| "The system is obviously doing Z" | Systems have hidden state, bypass paths, and responsibility gaps. |
+| "This is just a simple script" | Simple things hide unexamined assumptions. Apply the lens anyway. |
+| "I've seen this pattern before" | This instance is not the pattern. Read this code, not your memory of similar code. |
+| "The result speaks for itself" | Results never speak. Evidence requires an object, proxy, and failure path. |
+| "This doesn't need the lens — it's not science" | The lens applies to any claim, interpretation, or system judgment. |
+
+## Skill Map
+
+| Situation | Route to |
+|---|---|
+| Universal foundation — always active | `brain:whole-object-responsibility` |
+| Run benchmark, train model, search, simulate, optimize, execute workflow | `brain:think-before-you-calculate` |
+| Read paper, review AI4S, judge benchmark result, repair inflated claim | `brain:epistemic-systems-audit` |
+| Need superpowers workflows (brainstorming, debugging, TDD, planning) | `superpowers:using-superpowers` |
 
 ## Minimal Fallback
 
-Fill this in 3-8 lines. Use `Unknown` rather than inventing.
+Fill this in 3-8 lines as a quick self-check on any task. Use `Unknown` rather than inventing.
 
 ```text
-Object:
-Boundary:
-Proxy:
-Evidence:
-Failure Path:
-Responsibility:
-Productive Function:
-Narrow Claim:
+Object:           [the real thing or system the claim/action is about, not a proxy or label]
+Boundary:         [where the result holds; assumptions, limits, scope]
+Proxy:            [measurable substitute for the real goal or object]
+Evidence:         [what the data, code, or output actually supports]
+Failure Path:     [how the result, claim, or system could fail or be falsified]
+Responsibility:   [who owns interpretation, cleanup, and final claim]
+Productive Function: [real narrow value of the tool, system, or method]
+Narrow Claim:     [strongest claim the evidence supports, without inflation]
 ```
 
 ## Hard Rules
@@ -77,27 +139,17 @@ No responsibility owner -> no autonomy/safety/reliability claim.
 No productive function check -> critique may become over-dismissal.
 ```
 
-## Stop These Shortcuts
+## When NOT to Use
 
-Do not answer directly if you are about to say:
+Skip this router only when the task falls entirely outside any act of judgment, interpretation, or system understanding:
 
-- The model understands X because the score improved.
-- The benchmark proves reasoning.
-- The workflow automates discovery.
-- The agent autonomously discovered something.
-- The system is safe/reliable/autonomous without a failure path and responsibility owner.
-- The system is worthless because it is "only" a metric, workflow, or immature tool.
+- Pure configuration value changes ("change the port to 3000").
+- Formatting or whitespace-only edits with no behavioral implication.
+- Simple factual lookups with no interpretation ("what does `ls` do", "what time is it").
+- Purely administrative or organizational conversation (file cleanup, session management).
 
-Route first.
-
-## Skill Map
-
-| Situation | Use |
-| --- | --- |
-| Run benchmark, train model, search, simulate, optimize, execute workflow | `think-before-you-calculate` |
-| Read paper, review AI4S, judge benchmark result, repair inflated scientific claim | `epistemic-systems-audit` |
-| Audit agent OS, workflow engine, infrastructure, HPC, protocol, hidden state, responsibility gap | `whole-object-responsibility` |
+If there is any doubt, invoke the skill. The cost of a false positive is a few seconds of self-check; the cost of a false negative is accepting a label as understanding.
 
 ## Bottom Line
 
-Do not accept the name or narrative first. Find the object, proxy, evidence, failure path, responsibility owner, and real productive function.
+Ansatz Brain is the controller. `brain:whole-object-responsibility` is always active as the universal epistemic foundation. External skill arsenals like superpowers are routed to, never modified. Do not accept the name or narrative first — find the object, proxy, evidence, failure path, responsibility owner, and real productive function.
