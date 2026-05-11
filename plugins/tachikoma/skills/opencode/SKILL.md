@@ -5,28 +5,30 @@ description: Use when the user asks to run OpenCode CLI in non-interactive mode 
 
 # OpenCode Skill Guide
 
+Before running OpenCode, follow the shared logging and summary protocol in `../_shared/agent-cli.md`.
+
 ## Running a Task
 1. Verify installation: `command -v opencode`
-2. Select the agent required for the task; default to `build` agent unless read-only analysis is needed.
-3. **Always use `AskUserQuestion` before using the `build` agent for write operations.**
+2. Select the agent required for the task; default to `plan` for read-only analysis. For implementation/editing tasks, first use `superpowers:using-git-worktrees` to create a fresh git worktree, then run OpenCode there with `--agent build` when approved.
+3. **Always use `the current host's user-question or approval mechanism` before using the `build` agent for write operations.**
 4. Assemble the command with the appropriate options:
    - `-m, --model <provider/model>` - Model to use
    - `-c, --continue` - Continue the last session
    - `-s, --session <id>` - Session ID to continue
    - `--agent <agent>` - Agent to use (`build` for full access, `plan` for read-only)
    - `-f, --file <files...>` - File(s) to attach
-5. **IMPORTANT**: By default, append `2>/dev/null` to all `opencode run` commands to suppress stderr noise. Only show stderr if the user explicitly requests it or if debugging is needed.
-6. Run the command, capture stdout/stderr (filtered as appropriate), and summarize the outcome for the user.
+5. Do not suppress stderr. Capture stdout and stderr into `full.md`, and require the prompt to write `summary.md`.
+6. Run the command, inspect the full log and summary, and summarize the outcome for the user.
 
 ### Quick Reference
 | Use case | Command pattern |
 | --- | --- |
-| Full access (write/edit/bash) | `opencode run --agent build "prompt" 2>/dev/null` |
-| Read-only analysis | `opencode run --agent plan "prompt" 2>/dev/null` |
-| Continue last session | `opencode run --continue "follow-up" 2>/dev/null` |
-| Continue specific session | `opencode run --session <id> "prompt" 2>/dev/null` |
-| Use specific model | `opencode run --model anthropic/claude-sonnet-4-20250514 "prompt" 2>/dev/null` |
-| Attach files | `opencode run -f file.py "prompt" 2>/dev/null` |
+| Full access in fresh worktree only (write/edit/bash) | `opencode run --agent build "prompt"` |
+| Read-only analysis | `opencode run --agent plan "prompt"` |
+| Continue last session | `opencode run --continue "follow-up"` |
+| Continue specific session | `opencode run --session <id> "prompt"` |
+| Use specific model | `opencode run --model anthropic/claude-sonnet-4-20250514 "prompt"` |
+| Attach files | `opencode run -f file.py "prompt"` |
 | List models | `opencode models` |
 | List sessions | `opencode session list` |
 | List available agents | `opencode agent list` |
@@ -34,30 +36,29 @@ description: Use when the user asks to run OpenCode CLI in non-interactive mode 
 ### Agents
 | Agent | Permissions | Use Case |
 | --- | --- | --- |
-| `build` | Full access: write, edit, bash | Active development, making changes |
+| `build` | Full access: write, edit, bash | Active development in a fresh worktree |
 | `plan` | Read-only: no write/edit, bash asks first | Code analysis, planning, exploration |
 
 ### Example Commands
 
 ```bash
 # Read-only analysis with plan agent
-opencode run --agent plan "Analyze the codebase architecture" 2>/dev/null
+opencode run --agent plan "Analyze the codebase architecture"
 
-# Full access with build agent
-opencode run --agent build "Fix the bug in main.py" 2>/dev/null
+# Full access with build agent in a fresh worktree only
+opencode run --agent build "Fix the bug in main.py"
 
 # Continue last session
-opencode run --continue "What else can you improve?" 2>/dev/null
+opencode run --continue "What else can you improve?"
 
 # Use specific model
-opencode run --model anthropic/claude-sonnet-4-20250514 "Refactor this code" 2>/dev/null
+opencode run --model anthropic/claude-sonnet-4-20250514 "Refactor this code"
 
-# If redirection fails, wrap in bash -lc
-bash -lc 'opencode run --agent build "prompt" 2>/dev/null'
+# Capture stdout/stderr according to ../_shared/agent-cli.md
 ```
 
 ## Following Up
-- After every `opencode run` command, immediately use `AskUserQuestion` to confirm next steps, collect clarifications, or decide whether to resume with `--continue`.
+- After every `opencode run` command, immediately use `the current host's user-question or approval mechanism` to confirm next steps, collect clarifications, or decide whether to resume with `--continue`.
 - When resuming, the session automatically uses the same model and agent from the original session.
 - Restate the chosen model and agent when proposing follow-up actions.
 

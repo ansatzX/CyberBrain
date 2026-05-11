@@ -5,6 +5,8 @@ description: Use when tasks benefit from Gemini CLI for code generation, review,
 
 # Gemini CLI Skill Guide
 
+Before running Gemini, follow the shared logging and summary protocol in `../_shared/agent-cli.md`.
+
 ## When to Use Gemini
 
 | Use Case | Why Gemini |
@@ -19,14 +21,14 @@ description: Use when tasks benefit from Gemini CLI for code generation, review,
 ## Running a Task
 
 1. Verify installation: `command -v gemini`
-2. Select the mode required for the task; default to read-only (no `--yolo`) unless edits are necessary.
-3. **Always use `AskUserQuestion` before using `--yolo` or `-s` flags.** These modes allow file writes or sandboxed execution - get explicit user approval first.
+2. Select the mode required for the task. Default to read-only. For implementation/editing tasks, first use `superpowers:using-git-worktrees` to create a fresh git worktree, then run Gemini there with write-capable flags such as `--yolo` when approved.
+3. **Always use `the current host's user-question or approval mechanism` before using `--yolo` or `-s` flags.** These modes allow file writes or sandboxed execution - get explicit user approval first.
 4. Assemble the command with appropriate options:
    - `-m, --model <MODEL>` - Model selection
    - `-y, --yolo` - Auto-approve all tool calls (enables writes)
    - `-s, --sandbox` - Run in Docker isolation
    - `-o, --output-format <text|json>` - Output format
-5. **Important**: `gemini "prompt" -o json 2>/dev/null | jq -r '.response'` to suppress stderr noise and extract the json response, unless specified by the user.
+5. Do not suppress stderr. Capture stdout and stderr into `full.md`, and require the prompt to write `summary.md`. Use `-o json` only when structured output is needed; preserve the raw JSON in the full log.
 
 ### Critical Note
 YOLO mode does NOT prevent planning prompts. Use forceful language: "Apply now", "Start immediately", "Do this without asking for confirmation".
@@ -35,26 +37,25 @@ YOLO mode does NOT prevent planning prompts. Use forceful language: "Apply now",
 
 | Use case | Mode | Command pattern |
 | --- | --- | --- |
-| Read-only analysis | read-only | `gemini "..." -o json 2>/dev/null \| jq -r '.response'` |
-| Apply local edits | write | `gemini "..." --yolo -o json 2>/dev/null \| jq -r '.response'` |
-| Sandboxed write | sandbox | `gemini "..." --yolo --sandbox -o json 2>/dev/null \| jq -r '.response'` |
+| Read-only analysis | read-only | `gemini "..." -o json` |
+| Apply edits in fresh worktree only | write | `gemini "..." --yolo -o json` |
+| Sandboxed write in fresh worktree only | sandbox | `gemini "..." --yolo --sandbox -o json` |
 
 ### Example Commands
 
 ```bash
 # Read-only
-gemini "Review src/ for bugs" -o json 2>/dev/null | jq -r '.response'
+gemini "Review src/ for bugs" -o json
 
-# Write mode
-gemini "Fix bug in file.py. Apply now." --yolo -o json 2>/dev/null | jq -r '.response'
+# Write mode in a fresh worktree only
+gemini "Fix bug in file.py. Apply now." --yolo -o json
 
-# If redirection fails, wrap in bash -lc
-bash -lc 'gemini "prompt" -o json 2>/dev/null | jq -r ".response"'
+# Capture stdout/stderr according to ../_shared/agent-cli.md
 ```
 
 ## Following Up
 
-- Resume: `echo "follow-up" | gemini -r latest -o json 2>/dev/null | jq -r '.response'`
+- Resume: `echo "follow-up" | gemini -r latest -o json`
 - List sessions: `gemini --list-sessions`
 
 ## Error Handling

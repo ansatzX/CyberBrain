@@ -5,10 +5,12 @@ description: Use when the user asks to run GitHub Copilot CLI in non-interactive
 
 # GitHub Copilot CLI Skill Guide
 
+Before running Copilot CLI, follow the shared logging and summary protocol in `../_shared/agent-cli.md`.
+
 ## Running a Task
 1. Verify installation: `command -v copilot`
-2. Select the permission level required for the task; default to minimal permissions unless broader access is needed.
-3. **Always use `AskUserQuestion` before using `--allow-all`, `--yolo`, or `--allow-all-tools`.**
+2. Select the permission level required for the task. Default to minimal permissions for analysis. For implementation/editing tasks, first use `superpowers:using-git-worktrees` to create a fresh git worktree, then run Copilot there with write-capable permissions when approved.
+3. **Always use `the current host's user-question or approval mechanism` before using `--allow-all`, `--yolo`, or `--allow-all-tools`.**
 4. Assemble the command with the appropriate options:
    - `-p, --prompt <text>` - Execute prompt in non-interactive mode
    - `--model <model>` - Set the AI model to use
@@ -23,59 +25,58 @@ description: Use when the user asks to run GitHub Copilot CLI in non-interactive
    - `--allow-tool[=tools...]` - Allow specific tools without confirmation
    - `--output-format <text|json>` - Output format
    - `-s, --silent` - Output only agent response (for scripting)
-5. **IMPORTANT**: By default, append `2>/dev/null` to all `copilot` commands to suppress stderr noise. Only show stderr if the user explicitly requests it or if debugging is needed.
-6. Run the command, capture stdout/stderr (filtered as appropriate), and summarize the outcome for the user.
+5. Do not suppress stderr. Capture stdout and stderr into `full.md`, and require the prompt to write `summary.md`.
+6. Run the command, inspect the full log and summary, and summarize the outcome for the user.
 
 ### Quick Reference
 | Use case | Command pattern |
 | --- | --- |
-| Non-interactive prompt | `copilot -p "your prompt" 2>/dev/null` |
-| With auto-approve all | `copilot -p "prompt" --allow-all 2>/dev/null` |
-| With auto-approve tools only | `copilot -p "prompt" --allow-all-tools 2>/dev/null` |
-| Continue last session | `copilot --continue 2>/dev/null` |
-| Resume specific session | `copilot --resume=<session-id> 2>/dev/null` |
-| With specific model | `copilot --model <model> -p "prompt" 2>/dev/null` |
-| With specific effort | `copilot --effort high -p "prompt" 2>/dev/null` |
-| Add directory | `copilot --add-dir /path -p "prompt" 2>/dev/null` |
-| JSON output (silent) | `copilot -p "prompt" --output-format json -s 2>/dev/null` |
+| Non-interactive prompt | `copilot -p "your prompt"` |
+| Auto-approve all in fresh worktree only | `copilot -p "prompt" --allow-all` |
+| Auto-approve tools in fresh worktree only | `copilot -p "prompt" --allow-all-tools` |
+| Continue last session | `copilot --continue` |
+| Resume specific session | `copilot --resume=<session-id>` |
+| With specific model | `copilot --model <model> -p "prompt"` |
+| With specific effort | `copilot --effort high -p "prompt"` |
+| Add directory | `copilot --add-dir /path -p "prompt"` |
+| JSON output (silent) | `copilot -p "prompt" --output-format json -s` |
 
 ### Permission Levels
 | Option | Permissions | Use Case |
 | --- | --- | --- |
 | (none) | Ask for confirmation | General use, safest |
-| `--allow-all-tools` | Auto-approve all tools | Making changes |
-| `--allow-all-paths` | Access any path | Full file system access |
-| `--allow-all` / `--yolo` | All permissions enabled | Full access, no confirmation |
+| `--allow-all-tools` | Auto-approve all tools | Making changes in a fresh worktree |
+| `--allow-all-paths` | Access any path | Avoid unless explicitly required; never use in main tree |
+| `--allow-all` / `--yolo` | All permissions enabled | Full access in a fresh worktree |
 
 ### Example Commands
 
 ```bash
 # Non-interactive with a prompt
-copilot -p "Fix the bug in src/main.js" 2>/dev/null
+copilot -p "Fix the bug in src/main.js"
 
-# Non-interactive with auto-approve all permissions
-copilot -p "Refactor the utils module" --allow-all 2>/dev/null
+# Non-interactive with auto-approve all permissions in a fresh worktree only
+copilot -p "Refactor the utils module" --allow-all
 
-# Non-interactive with auto-approve tools only
-copilot -p "Update dependencies" --allow-all-tools 2>/dev/null
+# Non-interactive with auto-approve tools only in a fresh worktree only
+copilot -p "Update dependencies" --allow-all-tools
 
 # Continue last session
-copilot --continue 2>/dev/null
+copilot --continue
 
 # With specific reasoning effort
-copilot --effort high -p "Analyze this codebase" 2>/dev/null
+copilot --effort high -p "Analyze this codebase"
 
-# If redirection fails, wrap in bash -lc
-bash -lc 'copilot -p "prompt" 2>/dev/null'
+# Capture stdout/stderr according to ../_shared/agent-cli.md
 ```
 
 ## Following Up
-- After every `copilot` command, immediately use `AskUserQuestion` to confirm next steps, collect clarifications, or decide whether to resume with `--continue`.
+- After every `copilot` command, immediately use `the current host's user-question or approval mechanism` to confirm next steps, collect clarifications, or decide whether to resume with `--continue`.
 - When resuming, the session automatically uses the same model and permissions from the original session.
 - Restate the chosen model and permissions when proposing follow-up actions.
 
 ## Error Handling
 - Stop and report failures whenever `copilot --version` or a `copilot` command exits non-zero; request direction before retrying.
-- Before you use high-impact flags (`--allow-all`, `--yolo`, `--allow-all-tools`) ask the user for permission using AskUserQuestion unless it was already given.
-- When output includes warnings or partial results, summarize them and ask how to adjust using `AskUserQuestion`.
+- Before you use high-impact flags (`--allow-all`, `--yolo`, `--allow-all-tools`) ask the user for permission using the current host's user-question or approval mechanism unless it was already given.
+- When output includes warnings or partial results, summarize them and ask how to adjust using `the current host's user-question or approval mechanism`.
 - Always validate Copilot's output and any generated shell commands for security vulnerabilities (XSS, injection) before execution.

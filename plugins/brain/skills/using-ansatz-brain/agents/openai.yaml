@@ -1,4 +1,4 @@
 interface:
   display_name: "Using Ansatz Brain"
-  short_description: "Route object/proxy audits"
-  default_prompt: "Use $using-ansatz-brain at conversation start to check whether this task needs pre-calc, epistemic systems, or whole-object responsibility auditing."
+  short_description: "Route brain foundations"
+  default_prompt: "Use $using-ansatz-brain at conversation start to activate whole-object-responsibility and state-machine foundations, then route to pre-calc, epistemic systems, or external workflow skills as needed."

@@ -18,7 +18,7 @@
       "name": "tachikoma",
       "source": "./plugins/tachikoma",
       "description": "Skills for interacting with other Agent tools - Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI",
-      "version": "0.0.1"
+      "version": "0.0.3"
     },
     {
       "name": "brain",

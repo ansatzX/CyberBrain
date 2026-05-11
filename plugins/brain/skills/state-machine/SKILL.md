@@ -18,7 +18,7 @@ Always run the state-machine check, but scale the artifact:
 | `L0 internal` | Purely conversational, read-only, or no project state changes. | No file. Keep the state check internal. |
 | `L1 node` | One agent performs ordinary work with meaningful transitions or a completion claim. | One `.state-machine/<node-id>.md` file. |
 | `L2 gated` | Ordered correctness gates exist: source before transform, transform before artifact, verification before claim. | State node with explicit states, gate evidence, and progress matrix. |
-| `L3 coordinated` | Multiple agents, resumable work, high-risk state, or user-visible correctness claims. | Parent/child state nodes, role separation, object drift checks, and completion matrix. |
+| `L3 coordinated` | Multiple agents, resumable work, high-risk state, or user-visible correctness claims. | State-node DAG, role separation, object drift checks, and completion matrix. |
 
 Do not choose a lower level because the task feels easy. Choose by state risk: how much later reasoning will depend on this transition being correct.
 
@@ -31,7 +31,7 @@ At the start of work:
 3. Choose effort level `L0` through `L3`.
 4. Create or update this agent's own state node for `L1` and above.
 5. If the task is `L0`, do not create a file; keep the state check internal and do not claim state changed.
-6. Subagents write their own state node, not the parent's file. Each child node declares its parent node at the top. The parent may summarize child nodes later, but children never edit parent state.
+6. Subagents write their own state node, not the parent's file. Each child node declares one or more parent nodes at the top. The parent may summarize child nodes later, but children never edit parent state.
 
 ## Claim-Bearing Actions
 
@@ -72,7 +72,8 @@ Initialize new files with:
 # State Node
 
 Node ID:
-Parent Node: none | <relative path to parent node>
+Parent Nodes:
+- none | <relative path to parent node>
 Working Directory:
 Object:
 Current State: DISCOVERED
@@ -93,6 +94,27 @@ Last Updated:
 
 ## Transitions
 ```
+
+## State DAG
+
+State nodes form a directed acyclic graph, not necessarily a tree.
+
+- A node may have multiple parents when work depends on multiple upstream agents, specs, reviews, or evidence streams.
+- A node may have multiple children when a task is split across agents or subtasks.
+- A child must declare all known parents in `Parent Nodes`.
+- A parent does not have to know every child immediately; stale parent `Child Nodes` are acceptable.
+- Edges point from parent dependency to child work product.
+- Cycles are invalid. If a node depends on later work, record it as an open gap instead of creating a cycle.
+
+When declaring an edge, include the relationship when it matters:
+
+```text
+Parent Nodes:
+- path: .state-machine/root.md
+  relation: spawned-by | depends-on | verifies | summarizes | supersedes
+```
+
+Use `Child Nodes` as a convenience index, not as authority. The authoritative edge is the child's `Parent Nodes` declaration.
 
 ## Lightweight Ledger Protocol
 
