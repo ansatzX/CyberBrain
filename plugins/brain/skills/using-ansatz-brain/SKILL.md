@@ -1,11 +1,11 @@
 ---
 name: using-ansatz-brain
-description: "Use at the start of every conversation — the top-level skill controller. Routes to the universal whole-object-responsibility lens, domain brain skills, and external skill arsenals including superpowers."
+description: "Use at the start of every primary-agent and subagent conversation — the top-level skill controller. Always activates whole-object-responsibility and state-machine foundations, then routes to domain brain skills and external skill arsenals including superpowers."
 ---
 
-<SUBAGENT-STOP>
-If you were dispatched as a subagent to execute a specific task, skip this skill.
-</SUBAGENT-STOP>
+<AGENT-SCOPE>
+This controller applies to primary agents and subagents. Subagents may keep the self-check brief, but they must not skip the always-active foundations.
+</AGENT-SCOPE>
 
 <EXTREMELY-IMPORTANT>
 This skill is the top-level controller. It activates at the start of every conversation.
@@ -14,6 +14,7 @@ Ansatz Brain is the default-equipped skill arsenal. It does not replace external
 
 At the start of every conversation, invoke this skill. It will route you to:
 - `brain:whole-object-responsibility` (always — the universal epistemic foundation)
+- `brain:state-machine` (always — the project-state and transition foundation)
 - Domain brain skills as needed
 - External skill arsenals (superpowers, etc.) as needed
 
@@ -41,6 +42,11 @@ ansatz-brain (top-level controller)
     |       Do not accept names, rhetoric, labels, or surface concepts
     |       as understanding. Look past them to how things actually operate.
     |
+    +-- brain:state-machine  <-- ALWAYS ACTIVE
+    |       Project-state foundation.
+    |       Track claim-bearing state transitions, completion evidence,
+    |       and state-machine gates in the project being modified.
+    |
     +-- Brain domain skills (built-in):
     |       brain:think-before-you-calculate   -- calc, training, benchmarks
     |       brain:epistemic-systems-audit      -- papers, claims, evidence
@@ -54,7 +60,7 @@ ansatz-brain (top-level controller)
 
 `superpowers:using-superpowers` also activates at the start of every conversation. This does not create a conflict — the two skills occupy different roles:
 
-1. **Ansatz Brain triggers first.** It activates `brain:whole-object-responsibility` as the universal epistemic foundation and decides whether domain brain skills are needed.
+1. **Ansatz Brain triggers first.** It activates `brain:whole-object-responsibility` and `brain:state-machine` as always-active foundations, then decides whether domain brain skills are needed.
 2. **When the task needs superpowers workflows** (brainstorming, debugging, TDD, etc.), ansatz-brain routes to `superpowers:using-superpowers`.
 3. **Superpowers handles its own internal routing** — ansatz-brain never reaches into superpowers to pick individual skills. It hands off to `superpowers:using-superpowers` and superpowers distributes internally.
 
@@ -64,7 +70,9 @@ Both skills are active. Ansatz Brain owns the epistemic lens and the decision of
 
 **Invoke this skill at the start of every conversation. It decides what other skills to activate.**
 
-`brain:whole-object-responsibility` is always active as the universal foundation. It exists to prevent a single class of error: accepting a name, label, narrative, or surface appearance as understanding. Writing code, reading code, reading papers, debugging, designing — all of these involve forming judgments about how things work. The foundation lens applies to all of them.
+`brain:whole-object-responsibility` is always active as the universal object/responsibility foundation. It exists to prevent a single class of error: accepting a name, label, narrative, or surface appearance as understanding. Writing code, reading code, reading papers, debugging, designing — all of these involve forming judgments about how things work. The foundation lens applies to all of them.
+
+`brain:state-machine` is always active as the project-state foundation. It exists to prevent a complementary error: taking actions that change state while leaving no durable record of the implicit claim, authority source, lost information, verification, or completion evidence.
 
 Beyond the foundation, this controller routes to domain skills and external arsenals based on task type.
 
@@ -74,6 +82,11 @@ Beyond the foundation, this controller routes to domain skills and external arse
 0. (ALWAYS) brain:whole-object-responsibility
    What is the real object? How does it actually work?
    What names, labels, or narratives am I accepting at face value?
+
+0A. (ALWAYS) brain:state-machine
+   What project state exists? What state file should record transitions?
+   Will any action select, transform, substitute, summarize, store, delete,
+   present, or declare completion over state?
 
 1. Task involves running calculations, training, benchmarks, simulations, workflows?
    -> brain:think-before-you-calculate
@@ -85,7 +98,7 @@ Beyond the foundation, this controller routes to domain skills and external arse
    -> superpowers:using-superpowers
 ```
 
-Brain skills and external skills can coexist. A task may activate `brain:whole-object-responsibility` + `brain:think-before-you-calculate` + `superpowers:using-superpowers` simultaneously. The brain skills provide the epistemic lens; the external skills provide the workflow.
+Brain skills and external skills can coexist. A task may activate `brain:whole-object-responsibility` + `brain:state-machine` + `brain:think-before-you-calculate` + `superpowers:using-superpowers` simultaneously. The brain skills provide the epistemic and state lens; the external skills provide the workflow.
 
 ## Red Flags
 
@@ -108,6 +121,7 @@ These thoughts mean STOP — you are accepting a label as understanding:
 | Situation | Route to |
 |---|---|
 | Universal foundation — always active | `brain:whole-object-responsibility` |
+| Project-state and transition foundation — always active | `brain:state-machine` |
 | Run benchmark, train model, search, simulate, optimize, execute workflow | `brain:think-before-you-calculate` |
 | Read paper, review AI4S, judge benchmark result, repair inflated claim | `brain:epistemic-systems-audit` |
 | Need superpowers workflows (brainstorming, debugging, TDD, planning) | `superpowers:using-superpowers` |
@@ -139,17 +153,17 @@ No responsibility owner -> no autonomy/safety/reliability claim.
 No productive function check -> critique may become over-dismissal.
 ```
 
-## When NOT to Use
+## Lightweight Cases
 
-Skip this router only when the task falls entirely outside any act of judgment, interpretation, or system understanding:
+Do not skip this router. For tasks that fall outside meaningful judgment, interpretation, or state change, keep the pass lightweight and do not create a state file:
 
 - Pure configuration value changes ("change the port to 3000").
 - Formatting or whitespace-only edits with no behavioral implication.
 - Simple factual lookups with no interpretation ("what does `ls` do", "what time is it").
 - Purely administrative or organizational conversation (file cleanup, session management).
 
-If there is any doubt, invoke the skill. The cost of a false positive is a few seconds of self-check; the cost of a false negative is accepting a label as understanding.
+If there is any doubt, run the foundations and record state transitions when project state changes. The cost of a false positive is a few seconds of self-check; the cost of a false negative is accepting a label as understanding.
 
 ## Bottom Line
 
-Ansatz Brain is the controller. `brain:whole-object-responsibility` is always active as the universal epistemic foundation. External skill arsenals like superpowers are routed to, never modified. Do not accept the name or narrative first — find the object, proxy, evidence, failure path, responsibility owner, and real productive function.
+Ansatz Brain is the controller. `brain:whole-object-responsibility` and `brain:state-machine` are always active foundations. External skill arsenals like superpowers are routed to, never modified. Do not accept the name or narrative first — find the object, proxy, evidence, failure path, responsibility owner, real productive function, and the project-state transitions that make those claims durable.

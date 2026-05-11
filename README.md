@@ -185,6 +185,7 @@ codex exec -p llm_router -m deepseek-v4-pro --config model_reasoning_effort="xhi
 Included skills:
 
 - `using-ansatz-brain`
+- `state-machine`
 - `think-before-you-calculate`
 - `epistemic-systems-audit`
 - `whole-object-responsibility`
