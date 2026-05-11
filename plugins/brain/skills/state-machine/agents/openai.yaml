@@ -1,4 +1,4 @@
 interface:
   display_name: "State Machine"
   short_description: "Track claim-bearing state changes"
-  default_prompt: "Use $state-machine as an always-active project-state foundation: locate or create .agent/state.md, track meaningful state transitions, and record implicit claims, authority, lost information, verification, completion evidence, and state-machine gates."
+  default_prompt: "Use $state-machine as an always-active project-state foundation: create or update a working-directory-local .state-machine/<node-id>.md node, track meaningful state transitions, and record implicit claims, evidence quality, object drift, progress layers, and completion gates."

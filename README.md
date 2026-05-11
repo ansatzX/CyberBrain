@@ -190,6 +190,12 @@ Included skills:
 - `epistemic-systems-audit`
 - `whole-object-responsibility`
 
+State-machine TODO:
+
+- Add a validator that checks state nodes for completion without verification, proxy-only evidence marked verified, unresolved object drift, and open gaps before `CLAIM_READY`.
+- Add a summarizer that rolls child agent state nodes up into a parent node without requiring concurrent writes to the same file.
+- Add optional schema export for tools that want to read `.state-machine/*.md` as structured records.
+
 ### `awesome-agent-select`
 
 `awesome-agent-select` provides prompted subagents.

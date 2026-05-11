@@ -45,7 +45,7 @@ ansatz-brain (top-level controller)
     +-- brain:state-machine  <-- ALWAYS ACTIVE
     |       Project-state foundation.
     |       Track claim-bearing state transitions, completion evidence,
-    |       and state-machine gates in the project being modified.
+    |       and state-machine gates in working-directory-local state nodes.
     |
     +-- Brain domain skills (built-in):
     |       brain:think-before-you-calculate   -- calc, training, benchmarks
@@ -84,7 +84,7 @@ Beyond the foundation, this controller routes to domain skills and external arse
    What names, labels, or narratives am I accepting at face value?
 
 0A. (ALWAYS) brain:state-machine
-   What project state exists? What state file should record transitions?
+   What project state exists? What working-directory-local state node should record transitions?
    Will any action select, transform, substitute, summarize, store, delete,
    present, or declare completion over state?
 
@@ -163,6 +163,36 @@ Do not skip this router. For tasks that fall outside meaningful judgment, interp
 - Purely administrative or organizational conversation (file cleanup, session management).
 
 If there is any doubt, run the foundations and record state transitions when project state changes. The cost of a false positive is a few seconds of self-check; the cost of a false negative is accepting a label as understanding.
+
+## Experience Block
+
+These are accumulated operational lessons. They are not yet standalone skills; recurring entries may later be distilled into dedicated skills.
+
+### Python Execution Environments
+
+Prefer `uv` or `conda` for Python/Python3 work instead of bare-metal `python` or `python3`, unless the user explicitly asks for the system interpreter or the repository already requires it.
+
+When using `uv` inside a sandbox, do not rely on a global `UV_CACHE_DIR`; sandboxed runs may be unable to read or write it. Create a working-directory-local cache such as:
+
+```text
+./.cache/uv
+```
+
+Then run `uv` with:
+
+```text
+UV_CACHE_DIR=./.cache/uv uv ...
+```
+
+When using conda, do not activate environments in the shell. Use explicit conda subcommands:
+
+```text
+conda run -n <env> ...
+conda create -n <env> ...
+conda install -n <env> ...
+```
+
+Find the conda binary path before relying on it. Use a known local path when available, discover it from the environment, or ask the user for the conda binary path when it cannot be found safely.
 
 ## Bottom Line
 
