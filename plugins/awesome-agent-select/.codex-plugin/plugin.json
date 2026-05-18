@@ -2,6 +2,7 @@
   "name": "awesome-agent-select",
   "version": "0.0.1",
   "description": "Collection of useful prompted subagents for code review, API docs, QA, and more",
+  "hooks": "./hooks/hooks.json",
   "author": {
     "name": "ansatz"
   },

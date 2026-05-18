@@ -59,60 +59,69 @@ claude plugin uninstall brain@CyberBrain
 
 ## Codex Installation
 
-Clone the repository, then expose its Codex marketplace at the user-level Codex plugin root:
+Clone and register the marketplace:
 
 ```bash
-mkdir -p ~/soft ~/.agents/plugins/plugins
+mkdir -p ~/soft
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
-
-ln -sfn ~/soft/CyberBrain/.agents/plugins/marketplace.json ~/.agents/plugins/marketplace.json
-ln -sfn ~/soft/CyberBrain/plugins/awesome-agent-select ~/.agents/plugins/plugins/awesome-agent-select
-ln -sfn ~/soft/CyberBrain/plugins/tachikoma ~/.agents/plugins/plugins/tachikoma
-ln -sfn ~/soft/CyberBrain/plugins/brain ~/.agents/plugins/plugins/brain
+codex marketplace add CyberBrain ~/soft/CyberBrain
 ```
 
-Codex reads the marketplace from:
+Install plugins:
 
-```text
-~/.agents/plugins/marketplace.json
+```bash
+codex plugin install awesome-agent-select --marketplace CyberBrain
+codex plugin install tachikoma --marketplace CyberBrain
+codex plugin install brain --marketplace CyberBrain
 ```
 
-Codex plugin manifests:
+Uninstall:
 
-```text
-~/.agents/plugins/plugins/awesome-agent-select/.codex-plugin/plugin.json
-~/.agents/plugins/plugins/tachikoma/.codex-plugin/plugin.json
-~/.agents/plugins/plugins/brain/.codex-plugin/plugin.json
+```bash
+codex plugin uninstall awesome-agent-select@CyberBrain
+codex plugin uninstall tachikoma@CyberBrain
+codex plugin uninstall brain@CyberBrain
 ```
 
-Every skill includes Codex UI metadata at:
+### Agent Roles (awesome-agent-select)
 
-```text
-plugins/<plugin>/skills/<skill>/agents/openai.yaml
+Agent roles are injected via a `SessionStart` hook that symlinks `agents/*.toml` into `~/.codex/agents/`, where Codex discovers them at startup. No manual setup required — agents are available on the next session start after installation.
+
+To clean up agent symlinks from all plugins:
+
+```bash
+bash tools/cleanup-agent-symlinks.sh
 ```
+
+Still-enabled plugins will re-create their symlinks on the next session start.
 
 ## Plugin Layout
 
 ```text
 .claude-plugin/marketplace.json        # Claude Code marketplace
 .agents/plugins/marketplace.json       # Codex marketplace
+tools/
+  cleanup-agent-symlinks.sh            # batch cleanup of agent role symlinks
 plugins/
   awesome-agent-select/
     .claude-plugin/plugin.json
     .codex-plugin/plugin.json
-    agents/
+    agents/                            # .md for Claude Code, .toml for Codex
+    hooks/
+      hooks.json                       # SessionStart -> symlink agents/*.toml -> ~/.codex/agents/
     skills/
   tachikoma/
     .claude-plugin/plugin.json
     .codex-plugin/plugin.json
     commands/
     skills/
+    tools/
   brain/
     .claude-plugin/plugin.json
     .codex-plugin/plugin.json
     skills/
-  mac-eco/                              # disabled, under refactoring
-  notifications/                        # disabled, under refactoring
+  mac-eco/                             # disabled, under refactoring
+  notifications/                       # disabled, under refactoring
 ```
 
 ## Plugin Details
@@ -144,13 +153,13 @@ Included commands:
 
 #### `tachikoma::codex` and `llm_router`
 
-The `codex` skill supports the Codex profile `llm_router` for routing Codex traffic through [ansatzX/llm_router](https://github.com/ansatzX/llm_router). `llm-router` adapts Codex requests and responses for non-OpenAI providers while Codex continues to execute local tools.
+The `codex` skill supports the `llm_router` profile for routing Codex traffic through [ansatzX/llm_router](https://github.com/ansatzX/llm_router).
 
-Supported `tachikoma::codex` profile policy:
+Supported profile policy:
 
 | Profile | Model policy |
 |---------|--------------|
-| default profile | `gpt-5.4 high` or `gpt-5.5 high`; fallback to `gpt-5.3-codex` when no model preference is given |
+| default | `gpt-5.4 high` or `gpt-5.5 high`; fallback to `gpt-5.3-codex` |
 | `llm_router` | `deepseek-v4-pro xhigh` only |
 | `aihubmix` | `gpt-5.4 high` or `gpt-5.5 high` |
 
@@ -168,10 +177,10 @@ cp llm_router.json ~/.codex/llm_router.json
 Merge the `llm_router` provider/profile settings from `codex.config.example.toml` into `~/.codex/config.toml`, then start the router:
 
 ```bash
-uv run llm-router serve
+uv run llm_router serve
 ```
 
-Use it through Codex or through `tachikoma::codex`:
+Use it through Codex:
 
 ```bash
 codex -p llm_router
@@ -211,6 +220,21 @@ Included agents:
 - `test-automator`
 - `tooling-engineer`
 - `typescript-pro`
+
+In Codex, agent roles are injected through a `SessionStart` hook (`hooks/hooks.json`) that symlinks `agents/*.toml` into `~/.codex/agents/` on every session start. The `agents/*.md` files are preserved for Claude Code compatibility.
+
+| File | Format | Consumer |
+|------|--------|----------|
+| `agents/*.md` | YAML frontmatter + Markdown body | Claude Code |
+| `agents/*.toml` | `name` + `description` + `developer_instructions` | Codex |
+
+Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. The hook uses `$PLUGIN_ROOT` (set by Codex at hook runtime) and handles Unix (symlink) and Windows (copy) platforms.
+
+**Install**: `codex plugin install awesome-agent-select --marketplace CyberBrain` copies the plugin into `~/.codex/plugins/cache/CyberBrain/awesome-agent-select/`. Agents become available on the next Codex session start.
+
+**Uninstall**: `codex plugin uninstall awesome-agent-select@CyberBrain` removes the plugin cache and config entry. Run `bash tools/cleanup-agent-symlinks.sh` to remove leftover symlinks from `~/.codex/agents/`.
+
+For a detailed explanation of the Codex plugin system (install/uninstall flow, hook runtime, agent role discovery), see [CODEX_PLUGIN_SYSTEM.md](CODEX_PLUGIN_SYSTEM.md).
 
 ## Validation
 
