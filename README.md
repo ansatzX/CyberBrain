@@ -64,24 +64,19 @@ Clone and register the marketplace:
 ```bash
 mkdir -p ~/soft
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
-codex marketplace add CyberBrain ~/soft/CyberBrain
+codex plugin marketplace add ~/soft/CyberBrain
 ```
 
-Install plugins:
+Install plugins through the interactive plugin browser:
 
 ```bash
-codex plugin install awesome-agent-select --marketplace CyberBrain
-codex plugin install tachikoma --marketplace CyberBrain
-codex plugin install brain --marketplace CyberBrain
+codex
+/plugins
 ```
 
-Uninstall:
-
-```bash
-codex plugin uninstall awesome-agent-select@CyberBrain
-codex plugin uninstall tachikoma@CyberBrain
-codex plugin uninstall brain@CyberBrain
-```
+In the plugin browser, switch to the **CyberBrain** marketplace tab and install each plugin.
+Press <kbd>Space</kbd> on an installed plugin to toggle its enabled state.
+To remove the marketplace: `codex plugin marketplace remove CyberBrain`.
 
 ### Agent Roles (awesome-agent-select)
 
@@ -230,9 +225,9 @@ In Codex, agent roles are injected through a `SessionStart` hook (`hooks/hooks.j
 
 Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. The hook uses `$PLUGIN_ROOT` (set by Codex at hook runtime) and handles Unix (symlink) and Windows (copy) platforms.
 
-**Install**: `codex plugin install awesome-agent-select --marketplace CyberBrain` copies the plugin into `~/.codex/plugins/cache/CyberBrain/awesome-agent-select/`. Agents become available on the next Codex session start.
+**Install**: Use `/plugins` in the Codex interactive CLI to install from the CyberBrain marketplace. The plugin is copied into `~/.codex/plugins/cache/CyberBrain/awesome-agent-select/`. Agents become available on the next Codex session start.
 
-**Uninstall**: `codex plugin uninstall awesome-agent-select@CyberBrain` removes the plugin cache and config entry. Run `bash tools/cleanup-agent-symlinks.sh` to remove leftover symlinks from `~/.codex/agents/`.
+**Uninstall**: Uninstall through `/plugins` in the Codex interactive CLI, or remove the marketplace with `codex plugin marketplace remove CyberBrain`. Run `bash tools/cleanup-agent-symlinks.sh` to remove leftover symlinks from `~/.codex/agents/`.
 
 For a detailed explanation of the Codex plugin system (install/uninstall flow, hook runtime, agent role discovery), see [CODEX_PLUGIN_SYSTEM.md](CODEX_PLUGIN_SYSTEM.md).
 
