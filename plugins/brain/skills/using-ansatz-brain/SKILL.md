@@ -50,6 +50,7 @@ ansatz-brain (top-level controller)
     +-- Brain domain skills (built-in):
     |       brain:think-before-you-calculate   -- calc, training, benchmarks
     |       brain:epistemic-systems-audit      -- papers, claims, evidence
+    |       brain:codex-compatible             -- exec_command, sandbox, prefix_rule
     |
     +-- External skill arsenals (routed, never modified):
             superpowers:using-superpowers         -- superpowers self-routing
@@ -94,7 +95,10 @@ Beyond the foundation, this controller routes to domain skills and external arse
 2. Task involves evaluating a paper, AI4S result, scientific claim, or benchmark evidence?
    -> brain:epistemic-systems-audit
 
-3. Task needs superpowers workflows (brainstorming, debugging, TDD, planning, etc.)?
+3. Task involves exec_command escalation, sandbox permissions, or prefix_rule usage?
+   -> brain:codex-compatible
+
+4. Task needs superpowers workflows (brainstorming, debugging, TDD, planning, etc.)?
    -> superpowers:using-superpowers
 ```
 
@@ -124,6 +128,7 @@ These thoughts mean STOP — you are accepting a label as understanding:
 | Project-state and transition foundation — always active | `brain:state-machine` |
 | Run benchmark, train model, search, simulate, optimize, execute workflow | `brain:think-before-you-calculate` |
 | Read paper, review AI4S, judge benchmark result, repair inflated claim | `brain:epistemic-systems-audit` |
+| exec_command escalation, sandbox, prefix_rule | `brain:codex-compatible` |
 | Need superpowers workflows (brainstorming, debugging, TDD, planning) | `superpowers:using-superpowers` |
 
 ## Minimal Fallback
@@ -194,40 +199,12 @@ conda install -n <env> ...
 
 Find the conda binary path before relying on it. Use a known local path when available, discover it from the environment, or ask the user for the conda binary path when it cannot be found safely.
 
-### Durable Local Scripts
+For durable script discipline (timestamped `.scripts/` files, evidence provenance), see `brain:state-machine`. Scripts are evidence artifacts; state nodes track them.
 
-Do not run meaningful scripts by piping heredocs or long inline commands directly into interpreters such as `python`, `python3`, `bash`, `node`, or `ruby`.
+### Codex Operational Patterns
 
-This is especially forbidden for code that reads project artifacts, transforms data, validates outputs, generates reports, inspects logs, mutates files, or supports a later claim. A terminal transcript is not enough provenance for the script's assumptions, exact code, inputs, outputs, and interpretation boundary.
+For `exec_command` escalation, `prefix_rule`, sandbox writable roots, and `uv` cache configuration, route to `brain:codex-compatible`. All operational knowledge lives there.
 
-Before running any non-trivial script or complex shell operation, write it to the current working directory under:
-
-```text
-./.scripts/
-```
-
-Use a distinctive timestamped name:
-
-```text
-YYYYMMDD-HHMMSS-<purpose>.py
-YYYYMMDD-HHMMSS-<purpose>.sh
-```
-
-Keep the script after execution. Do not delete it as cleanup unless the user explicitly asks and the state record preserves why deletion is safe.
-
-When `brain:state-machine` is active at `L1` or above, record the script in the state node:
-
-```text
-Script Path:
-Script Responsibility:
-Inputs / Authority:
-Outputs / Derived State:
-Boundary:
-Owner Role:
-Verification:
-```
-
-The script is part of the evidence chain. If it is not durable, its output should be treated as exploratory rather than verified.
 
 ## Bottom Line
 

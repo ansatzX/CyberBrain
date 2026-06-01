@@ -155,6 +155,42 @@ Classify evidence before using it to advance state:
 
 Hard rule: proxy evidence cannot justify `VERIFIED`, `CLAIM_READY`, or completion. If authority and proxy conflict, authority wins unless the user explicitly overrides it.
 
+
+### Durable Local Scripts
+
+Do not run meaningful scripts by piping heredocs or long inline commands directly into interpreters such as `python`, `python3`, `bash`, `node`, or `ruby`.
+
+This is especially forbidden for code that reads project artifacts, transforms data, validates outputs, generates reports, inspects logs, mutates files, or supports a later claim. A terminal transcript is not enough provenance for the script's assumptions, exact code, inputs, outputs, and interpretation boundary.
+
+Before running any non-trivial script or complex shell operation, write it to the current working directory under:
+
+```text
+./.scripts/
+```
+
+Use a distinctive timestamped name:
+
+```text
+YYYYMMDD-HHMMSS-<purpose>.py
+YYYYMMDD-HHMMSS-<purpose>.sh
+```
+
+Keep the script after execution. Do not delete it as cleanup unless the user explicitly asks and the state record preserves why deletion is safe.
+
+When `brain:state-machine` is active at `L1` or above, record the script in the state node:
+
+```text
+Script Path:
+Script Responsibility:
+Inputs / Authority:
+Outputs / Derived State:
+Boundary:
+Owner Role:
+Verification:
+```
+
+The script is part of the evidence chain. If it is not durable, its output should be treated as exploratory rather than verified.
+
 ## Role And Authority Separation
 
 Use roles instead of vague ownership:
