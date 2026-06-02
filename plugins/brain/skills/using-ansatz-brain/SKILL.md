@@ -50,6 +50,7 @@ ansatz-brain (top-level controller)
     +-- Brain domain skills (built-in):
     |       brain:think-before-you-calculate   -- calc, training, benchmarks
     |       brain:epistemic-systems-audit      -- papers, claims, evidence
+    |       brain:agentic-search               -- web search, source verification, entity disambiguation
     |       brain:codex-compatible             -- exec_command, sandbox, prefix_rule
     |
     +-- External skill arsenals (routed, never modified):
@@ -89,20 +90,25 @@ Beyond the foundation, this controller routes to domain skills and external arse
    Will any action select, transform, substitute, summarize, store, delete,
    present, or declare completion over state?
 
-1. Task involves running calculations, training, benchmarks, simulations, workflows?
+1. Task involves web search, current information, source verification, citations,
+   or entity/person/paper/project disambiguation?
+   -> brain:agentic-search
+
+2. Task involves running calculations, training, benchmarks, simulations,
+   computational searches, workflows, or optimization?
    -> brain:think-before-you-calculate
 
-2. Task involves evaluating a paper, AI4S result, scientific claim, or benchmark evidence?
+3. Task involves evaluating a paper, AI4S result, scientific claim, or benchmark evidence?
    -> brain:epistemic-systems-audit
 
-3. Task involves exec_command escalation, sandbox permissions, or prefix_rule usage?
+4. Task involves exec_command escalation, sandbox permissions, or prefix_rule usage?
    -> brain:codex-compatible
 
-4. Task needs superpowers workflows (brainstorming, debugging, TDD, planning, etc.)?
+5. Task needs superpowers workflows (brainstorming, debugging, TDD, planning, etc.)?
    -> superpowers:using-superpowers
 ```
 
-Brain skills and external skills can coexist. A task may activate `brain:whole-object-responsibility` + `brain:state-machine` + `brain:think-before-you-calculate` + `superpowers:using-superpowers` simultaneously. The brain skills provide the epistemic and state lens; the external skills provide the workflow.
+Brain skills and external skills can coexist. A task may activate `brain:whole-object-responsibility` + `brain:state-machine` + `brain:agentic-search` + `superpowers:using-superpowers` simultaneously. Search-heavy computational work may also activate `brain:think-before-you-calculate`. The brain skills provide the epistemic and state lens; the external skills provide the workflow.
 
 ## Red Flags
 
@@ -126,7 +132,8 @@ These thoughts mean STOP — you are accepting a label as understanding:
 |---|---|
 | Universal foundation — always active | `brain:whole-object-responsibility` |
 | Project-state and transition foundation — always active | `brain:state-machine` |
-| Run benchmark, train model, search, simulate, optimize, execute workflow | `brain:think-before-you-calculate` |
+| Web search, current facts, source verification, citations, entity/person/paper/project disambiguation | `brain:agentic-search` |
+| Run benchmark, train model, computational search, simulate, optimize, execute workflow | `brain:think-before-you-calculate` |
 | Read paper, review AI4S, judge benchmark result, repair inflated claim | `brain:epistemic-systems-audit` |
 | exec_command escalation, sandbox, prefix_rule | `brain:codex-compatible` |
 | Need superpowers workflows (brainstorming, debugging, TDD, planning) | `superpowers:using-superpowers` |
@@ -199,7 +206,7 @@ conda install -n <env> ...
 
 Find the conda binary path before relying on it. Use a known local path when available, discover it from the environment, or ask the user for the conda binary path when it cannot be found safely.
 
-For durable script discipline (timestamped `.scripts/` files, evidence provenance), see `brain:state-machine`. Scripts are evidence artifacts; state nodes track them.
+For durable script discipline (timestamped `.scripts/` files, evidence provenance), see `brain:state-machine`. Non-trivial scripts and complex shell operations should be written under `./.scripts/`, kept after execution, and recorded with fields such as `Script Responsibility`, inputs, outputs, boundary, owner role, and verification. Scripts are evidence artifacts; state nodes track them. Non-durable script output should be treated as exploratory rather than verified.
 
 ### Codex Operational Patterns
 

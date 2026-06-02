@@ -1,6 +1,6 @@
 ---
 name: think-before-you-calculate
-description: "Use when a task asks to run calculations, simulations, model training, searches, benchmarks, optimizations, workflows, agents, pipelines, or other tool-heavy execution before the scientific question and interpretation boundary are clear."
+description: "Use when a task asks to run calculations, simulations, model training, computational searches, benchmarks, optimizations, workflows, agents, pipelines, or other tool-heavy execution before the scientific question and interpretation boundary are clear."
 ---
 
 # Think Before You Calculate
@@ -35,6 +35,8 @@ Weak models must use these meanings, not guess.
 | `responsibility` | Who owns setup, interpretation, failure analysis, and final claim. |
 | `productive function` | The real narrow value of the tool: speed, scale, reproducibility, comparison, automation, cost reduction, candidate generation. |
 | `narrow claim` | The strongest claim the evidence supports without inflation. |
+
+Information retrieval, source verification, and search-result interpretation route to `brain:agentic-search`. Parameter search, benchmark search, optimization search, candidate search, and other computational searches remain in this skill.
 
 ## Minimal Audit
 
@@ -95,7 +97,7 @@ Productive function: [real value].
 
 Stop and audit when:
 
-- The task says only "improve MAE," "run benchmark," "train model," "search," "generate candidates," or "automate workflow."
+- The task says only "improve MAE," "run benchmark," "train model," "search candidates," "optimize," "generate candidates," or "automate workflow."
 - A metric, loss, benchmark score, generated output, or workflow completion is about to become the conclusion.
 - The calculation target is clear but the scientific object is not.
 - The tool can run, but no one owns interpretation.
@@ -105,6 +107,7 @@ Stop and audit when:
 
 Use a more specific skill when the task is not just pre-execution:
 
+- Use `agentic-search` for web search, current-information lookup, source verification, citations, and entity/person/paper/project disambiguation.
 - Use `epistemic-systems-audit` for papers, AI4S, benchmark claims, scientific understanding claims, and claim repair.
 - Use `whole-object-responsibility` for agent OS, workflow systems, infrastructure, HPC, distributed systems, protocol failure, and division-of-labor responsibility.
 

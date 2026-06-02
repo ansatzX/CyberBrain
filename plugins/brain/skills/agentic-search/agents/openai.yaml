@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agentic Search"
+  short_description: "Verify search evidence and entity identity"
+  default_prompt: "Use $agentic-search when the task involves web search, current information, source verification, citations, or entity/person/paper/project disambiguation: define the search object, compile checkable claims, prioritize authoritative sources, disambiguate near misses, and mark evidence status."

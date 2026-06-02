@@ -184,12 +184,13 @@ codex exec -p llm_router -m deepseek-v4-pro --config model_reasoning_effort="xhi
 
 ### `brain`
 
-`brain` provides audit-oriented skills for scientific, technical, and workflow reasoning.
+`brain` provides audit-oriented skills for scientific, technical, workflow, and search-evidence reasoning.
 
 Included skills:
 
 - `using-ansatz-brain`
 - `state-machine`
+- `agentic-search`
 - `think-before-you-calculate`
 - `epistemic-systems-audit`
 - `whole-object-responsibility`

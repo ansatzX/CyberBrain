@@ -1,4 +1,4 @@
 interface:
   display_name: "Using Ansatz Brain"
   short_description: "Route brain foundations"
-  default_prompt: "Use $using-ansatz-brain at conversation start to activate whole-object-responsibility and state-machine foundations, then route to pre-calc, epistemic systems, or external workflow skills as needed."
+  default_prompt: "Use $using-ansatz-brain at conversation start to activate whole-object-responsibility and state-machine foundations, then route to agentic search, pre-calc, epistemic systems, Codex platform mechanics, or external workflow skills as needed."

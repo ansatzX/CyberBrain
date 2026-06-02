@@ -9,6 +9,8 @@ description: "Use when the task involves `exec_command` escalation, `prefix_rule
 
 This skill covers Codex platform patterns that are not domain-specific but are essential for correct agent behavior: `exec_command` escalation, `prefix_rule` selection, sandbox writable roots, and tool cache directories.
 
+For web-search judgment, source verification, current-information checks, or entity disambiguation, route to `brain:agentic-search`. This skill only covers Codex platform mechanics; it must not absorb search strategy or source-ranking policy.
+
 ## `exec_command` `prefix_rule` Escalation
 
 When `exec_command` fails sandboxing and requires escalation (`sandbox_permissions="require_escalated"`), provide a `prefix_rule` that captures the reusable command pattern — **not** the full command with specific arguments. See [prefix_rule_mechanism.md](/Users/ansatz/data/code/Cyberbrain/prefix_rule_mechanism.md) for the full reference.
