@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Clean up agent role symlinks in ~/.codex/agents/
+# Clean up legacy agent role symlinks in ~/.codex/agents/
 #
-# Plugins use SessionStart hooks to symlink agent .toml files into
-# ~/.codex/agents/. This script removes all such symlinks.
-# Any plugin that is still enabled will re-create its symlinks on next session start.
+# Older plugin builds used SessionStart hooks to symlink agent .toml files into
+# ~/.codex/agents/. This script removes only symlinks and leaves regular files alone.
+# Current awesome-agent-select builds use an explicit installer plus managed copies.
 #
 # Usage: bash cleanup-agent-symlinks.sh
 set -euo pipefail

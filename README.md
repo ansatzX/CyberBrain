@@ -80,7 +80,27 @@ To remove the marketplace: `codex plugin marketplace remove CyberBrain`.
 
 ### Agent Roles (awesome-agent-select)
 
-Agent roles are injected via a `SessionStart` hook that symlinks `agents/*.toml` into `~/.codex/agents/`, where Codex discovers them at startup. No manual setup required — agents are available on the next session start after installation.
+Install `awesome-agent-select` from `/plugins`, then explicitly install its Codex agent roles:
+
+```bash
+bash tools/awesome-agent-select-codex-agents.sh install
+```
+
+This copies `agents/*.toml` into `~/.codex/agents/` and writes a manifest so later `doctor` and `uninstall` operations touch only files owned by `awesome-agent-select`.
+
+Check status:
+
+```bash
+bash tools/awesome-agent-select-codex-agents.sh doctor
+```
+
+Remove only managed agent files:
+
+```bash
+bash tools/awesome-agent-select-codex-agents.sh uninstall
+```
+
+The plugin still keeps a `SessionStart` hook as a compatibility bootstrap. It now refreshes managed copies and migrates legacy symlinks, but the supported path is the explicit installer above.
 
 To clean up agent symlinks from all plugins:
 
@@ -96,6 +116,7 @@ Still-enabled plugins will re-create their symlinks on the next session start.
 .claude-plugin/marketplace.json        # Claude Code marketplace
 .agents/plugins/marketplace.json       # Codex marketplace
 tools/
+  awesome-agent-select-codex-agents.sh  # explicit install / doctor / uninstall wrapper
   cleanup-agent-symlinks.sh            # batch cleanup of agent role symlinks
 plugins/
   awesome-agent-select/
@@ -103,8 +124,10 @@ plugins/
     .codex-plugin/plugin.json
     agents/                            # .md for Claude Code, .toml for Codex
     hooks/
-      hooks.json                       # SessionStart -> symlink agents/*.toml -> ~/.codex/agents/
+      hooks.json                       # SessionStart -> sync managed copies into ~/.codex/agents/
     skills/
+    tools/
+      manage-codex-agents.sh           # canonical installer used by explicit wrapper and hook
   tachikoma/
     .claude-plugin/plugin.json
     .codex-plugin/plugin.json
@@ -217,18 +240,20 @@ Included agents:
 - `tooling-engineer`
 - `typescript-pro`
 
-In Codex, agent roles are injected through a `SessionStart` hook (`hooks/hooks.json`) that symlinks `agents/*.toml` into `~/.codex/agents/` on every session start. The `agents/*.md` files are preserved for Claude Code compatibility.
+In Codex, the supported installation path is an explicit installer that copies `agents/*.toml` into `~/.codex/agents/` and writes a local manifest. The `agents/*.md` files are preserved for Claude Code compatibility.
 
 | File | Format | Consumer |
 |------|--------|----------|
 | `agents/*.md` | YAML frontmatter + Markdown body | Claude Code |
 | `agents/*.toml` | `name` + `description` + `developer_instructions` | Codex |
 
-Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. The hook uses `$PLUGIN_ROOT` (set by Codex at hook runtime) and handles Unix (symlink) and Windows (copy) platforms.
+Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. `bash tools/awesome-agent-select-codex-agents.sh install` is the supported way to populate that directory. The plugin's `SessionStart` hook now acts as a bootstrap sync for already-managed files and legacy symlink migration.
 
-**Install**: Use `/plugins` in the Codex interactive CLI to install from the CyberBrain marketplace. The plugin is copied into `~/.codex/plugins/cache/CyberBrain/awesome-agent-select/`. Agents become available on the next Codex session start.
+**Install**: Use `/plugins` in the Codex interactive CLI to install from the CyberBrain marketplace, then run `bash tools/awesome-agent-select-codex-agents.sh install`. Start a new Codex session after the install so the newly copied agent roles are discovered.
 
-**Uninstall**: Uninstall through `/plugins` in the Codex interactive CLI, or remove the marketplace with `codex plugin marketplace remove CyberBrain`. Run `bash tools/cleanup-agent-symlinks.sh` to remove leftover symlinks from `~/.codex/agents/`.
+**Verify**: Run `bash tools/awesome-agent-select-codex-agents.sh doctor`.
+
+**Uninstall**: Run `bash tools/awesome-agent-select-codex-agents.sh uninstall` to remove only managed files. If you previously used the legacy symlink-based flow, `bash tools/cleanup-agent-symlinks.sh` removes leftover symlinks. Plugin uninstall through `/plugins` still does not have an uninstall hook in Codex itself.
 
 For a detailed explanation of the Codex plugin system (install/uninstall flow, hook runtime, agent role discovery), see [CODEX_PLUGIN_SYSTEM.md](CODEX_PLUGIN_SYSTEM.md).
 
