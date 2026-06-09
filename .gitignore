@@ -2,3 +2,5 @@
 docs/
 .worktrees/
 .local_read_mcp/
+.state-machine/
+.scripts/
