@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Escalation Service - Persistent notification escalation manager for Claude Code.
+Escalation Service - Persistent notification escalation manager for Codex.
 
 Listens on a Unix socket for commands to add/cancel escalation timers.
 Uses a single scheduler thread with a heap for efficient timer management.
@@ -41,9 +41,9 @@ except ImportError:
     HAS_PSUTIL = False
 
 
-# Default configuration - use ~/.claude/run for runtime files
-DEFAULT_SOCKET = Path("~/.claude/run/escalation.sock").expanduser()
-DEFAULT_LOG = Path("~/.claude/logs/escalation.log").expanduser()
+# Default configuration - use ~/.codex/run for runtime files
+DEFAULT_SOCKET = Path("~/.codex/run/escalation.sock").expanduser()
+DEFAULT_LOG = Path("~/.codex/logs/escalation.log").expanduser()
 DEFAULT_DELAYS = [60, 3600]  # 1 min, 1 hour
 PRIORITIES = {60: 0, 3600: 2}  # delay -> priority mapping
 PID_CHECK_INTERVAL = 60  # Check for dead PIDs every 60 seconds
@@ -239,7 +239,7 @@ class EscalationService:
         """Check if a session's process is busy (tool running).
 
         A session is considered busy if:
-        1. The main Claude process CPU > 10%, OR
+        1. The main Codex process CPU > 10%, OR
         2. There are child processes (bash commands, etc.)
         """
         if not HAS_PSUTIL:
@@ -337,7 +337,7 @@ class EscalationService:
 
         po_notify = PO_NOTIFY_SCRIPT
 
-        title = "Claude Permission" if priority < 2 else "Claude Permission (1hr)"
+        title = "Codex Permission" if priority < 2 else "Codex Permission (1hr)"
 
         self.logger.info(f"Sending notification: {title} - {message[:50]}... (priority {priority})")
 
@@ -566,7 +566,7 @@ class EscalationService:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Escalation service for Claude Code")
+    parser = argparse.ArgumentParser(description="Escalation service for Codex")
     parser.add_argument(
         "--socket",
         type=Path,

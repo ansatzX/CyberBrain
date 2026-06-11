@@ -6,7 +6,7 @@
   <img src="assset/CyberBrain.png" alt="CyberBrain" width="400"/>
 </div>
 
-CyberBrain is a local plugin marketplace for Claude Code and Codex. It packages shared skills, commands, and agent definitions used across development workflows.
+CyberBrain is a local plugin marketplace for Codex. It packages shared skills and agent definitions used across development workflows.
 
 ## Active Plugins
 
@@ -18,44 +18,17 @@ CyberBrain is a local plugin marketplace for Claude Code and Codex. It packages 
 
 ## Disabled Plugins
 
-These plugins are under refactoring and are not published in the Claude Code or Codex marketplaces:
+These plugins are under refactoring and are not published in the Codex marketplace:
 
 - `mac-eco`
 - `notifications`
 
 ## Requirements
 
-- Claude Code, for `.claude-plugin` marketplace use
 - Codex CLI 0.79.0 or newer, for `.codex-plugin` marketplace use
 - `jq` 1.8.1 or newer for local validation
 - Optional CLI tools used by `tachikoma`: Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, Kimi CLI
 - Keep all CLI tools used by `tachikoma` updated to their latest available release before relying on the corresponding skill.
-
-## Claude Code Installation
-
-Clone the repository and add it as a Claude Code marketplace:
-
-```bash
-mkdir -p ~/soft
-git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
-claude plugin marketplace add ~/soft/CyberBrain
-```
-
-Install the active plugins:
-
-```bash
-claude plugin install awesome-agent-select@CyberBrain
-claude plugin install tachikoma@CyberBrain
-claude plugin install brain@CyberBrain
-```
-
-Uninstall:
-
-```bash
-claude plugin uninstall awesome-agent-select@CyberBrain
-claude plugin uninstall tachikoma@CyberBrain
-claude plugin uninstall brain@CyberBrain
-```
 
 ## Codex Installation
 
@@ -100,7 +73,7 @@ Remove only managed agent files:
 bash tools/awesome-agent-select-codex-agents.sh uninstall
 ```
 
-The plugin still keeps a `SessionStart` hook as a compatibility bootstrap. It now refreshes managed copies and migrates legacy symlinks, but the supported path is the explicit installer above.
+This explicit installer is the only supported installation path for Codex agent roles in `awesome-agent-select`.
 
 To clean up agent symlinks from all plugins:
 
@@ -113,29 +86,22 @@ Still-enabled plugins will re-create their symlinks on the next session start.
 ## Plugin Layout
 
 ```text
-.claude-plugin/marketplace.json        # Claude Code marketplace
 .agents/plugins/marketplace.json       # Codex marketplace
 tools/
   awesome-agent-select-codex-agents.sh  # explicit install / doctor / uninstall wrapper
   cleanup-agent-symlinks.sh            # batch cleanup of agent role symlinks
 plugins/
   awesome-agent-select/
-    .claude-plugin/plugin.json
     .codex-plugin/plugin.json
-    agents/                            # .md for Claude Code, .toml for Codex
-    hooks/
-      hooks.json                       # SessionStart -> sync managed copies into ~/.codex/agents/
+    agents/                            # Codex agent TOML definitions
     skills/
     tools/
-      manage-codex-agents.sh           # canonical installer used by explicit wrapper and hook
+      manage-codex-agents.sh           # canonical installer used by explicit wrapper
   tachikoma/
-    .claude-plugin/plugin.json
     .codex-plugin/plugin.json
-    commands/
     skills/
     tools/
   brain/
-    .claude-plugin/plugin.json
     .codex-plugin/plugin.json
     skills/
   mac-eco/                             # disabled, under refactoring
@@ -150,7 +116,7 @@ plugins/
   <img src="assset/Tachikoma.png" alt="tachikoma" width="300"/>
 </div>
 
-`tachikoma` provides skills for running and coordinating external AI CLI tools.
+`tachikoma` provides skills for running and coordinating external AI CLI tools from Codex.
 
 Included skills:
 
@@ -163,11 +129,6 @@ Included skills:
 - `github-copilot-cli`
 - `kiro-cli`
 - `kimi-cli`
-
-Included commands:
-
-- `collab-fix`
-- `TDD-debug`
 
 #### `tachikoma::codex` and `llm_router`
 
@@ -240,14 +201,13 @@ Included agents:
 - `tooling-engineer`
 - `typescript-pro`
 
-In Codex, the supported installation path is an explicit installer that copies `agents/*.toml` into `~/.codex/agents/` and writes a local manifest. The `agents/*.md` files are preserved for Claude Code compatibility.
+In Codex, the supported installation path is an explicit installer that copies `agents/*.toml` into `~/.codex/agents/` and writes a local manifest.
 
 | File | Format | Consumer |
 |------|--------|----------|
-| `agents/*.md` | YAML frontmatter + Markdown body | Claude Code |
 | `agents/*.toml` | `name` + `description` + `developer_instructions` | Codex |
 
-Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. `bash tools/awesome-agent-select-codex-agents.sh install` is the supported way to populate that directory. The plugin's `SessionStart` hook now acts as a bootstrap sync for already-managed files and legacy symlink migration.
+Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. `bash tools/awesome-agent-select-codex-agents.sh install` is the supported way to populate that directory.
 
 **Install**: Use `/plugins` in the Codex interactive CLI to install from the CyberBrain marketplace, then run `bash tools/awesome-agent-select-codex-agents.sh install`. Start a new Codex session after the install so the newly copied agent roles are discovered.
 
@@ -262,7 +222,7 @@ For a detailed explanation of the Codex plugin system (install/uninstall flow, h
 Validate marketplace and plugin JSON:
 
 ```bash
-jq -e . .claude-plugin/marketplace.json .agents/plugins/marketplace.json plugins/*/.claude-plugin/plugin.json plugins/*/.codex-plugin/plugin.json
+jq -e . .agents/plugins/marketplace.json plugins/*/.codex-plugin/plugin.json
 ```
 
 Check skill metadata coverage:

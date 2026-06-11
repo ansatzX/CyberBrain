@@ -18,9 +18,9 @@ import time
 from pathlib import Path
 
 
-# Default configuration - use ~/.claude/run for runtime files
-DEFAULT_SOCKET = Path("~/.claude/run/escalation.sock").expanduser()
-DEFAULT_LOCKFILE = Path("~/.claude/run/escalation.lock").expanduser()
+# Default configuration - use ~/.codex/run for runtime files
+DEFAULT_SOCKET = Path("~/.codex/run/escalation.sock").expanduser()
+DEFAULT_LOCKFILE = Path("~/.codex/run/escalation.lock").expanduser()
 # Service script is relative to this file
 SERVICE_SCRIPT = Path(__file__).parent / "escalation_service.py"
 

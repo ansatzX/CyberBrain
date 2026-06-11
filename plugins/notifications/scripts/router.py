@@ -31,7 +31,7 @@ from .backends import (
 
 
 # Config file location
-CONFIG_PATH = Path("~/.claude/notifications/config.toml").expanduser()
+CONFIG_PATH = Path("~/.codex/notifications/config.toml").expanduser()
 
 # Backend registry
 BACKENDS: dict[str, NotificationBackend] = {
@@ -94,7 +94,7 @@ class NotificationRouter:
         Route notification to configured backends.
 
         Args:
-            event_type: Claude event type
+            event_type: Codex event type
             notification: Notification data
         """
         backend_names = self.routes.get(event_type, [])

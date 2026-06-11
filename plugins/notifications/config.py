@@ -3,7 +3,7 @@ Configuration module for the notifications plugin.
 
 Allows users to enable/disable features via simple config files:
 
-~/.claude/notifications/
+~/.codex/notifications/
 ├── pushover-enabled          # Enables Pushover features
 ├── pushover-completion       # Enables task completion notifications
 ├── jenkins-enabled           # Enables Jenkins triggers
@@ -17,7 +17,7 @@ from pathlib import Path
 
 
 # Configuration directory
-CONFIG_DIR = Path("~/.claude/notifications").expanduser()
+CONFIG_DIR = Path("~/.codex/notifications").expanduser()
 
 # Feature names (avoids string repetition)
 FEATURES = {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code SessionEnd Hook - Unregister session (may stop service if last).
+Codex SessionEnd Hook - Unregister session (may stop service if last).
 
 Receives via stdin:
 {

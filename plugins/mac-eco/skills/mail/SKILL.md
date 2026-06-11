@@ -9,6 +9,6 @@ description: Use when the user asks to send an email via the macOS Mail app.
 scripts/imail.sh "<recipient>" "<subject>" "<body>"
 ```
 
-Constraint: Use `AskUserQuestion` to confirm with the user before sending.
+Constraint: Confirm with the user before sending.
 
 Note: Requires Accessibility permissions for Terminal.

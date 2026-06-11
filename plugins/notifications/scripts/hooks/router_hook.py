@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Hook - All Claude events flow through this.
+Unified Hook - All Codex events flow through this.
 
 Events handled:
 - SessionStart, SessionEnd
@@ -24,7 +24,7 @@ from config import is_pushover_enabled
 
 
 def event_type_to_notification_type(event_type: str) -> str | None:
-    """Map Claude hook event to notification type."""
+    """Map Codex hook event to notification type."""
     mapping = {
         "Notification:permission_prompt": "permission_prompt",
         "Stop": "task_complete",
@@ -46,7 +46,7 @@ def build_notification(
     if notify_type == "permission_prompt":
         return Notification(
             event_type=notify_type,
-            title="Claude Permission",
+            title="Codex Permission",
             message=hook_input.get("message", "Awaiting permission"),
             priority=0,
         )
@@ -54,7 +54,7 @@ def build_notification(
     elif notify_type == "task_complete":
         return Notification(
             event_type=notify_type,
-            title="Claude Done",
+            title="Codex Done",
             message="Task completed",
             priority=-1,
         )
@@ -62,7 +62,7 @@ def build_notification(
     elif notify_type == "tool_complete":
         return Notification(
             event_type=notify_type,
-            title="Claude Tool",
+            title="Codex Tool",
             message="Tool execution completed",
             priority=-2,
         )
@@ -70,7 +70,7 @@ def build_notification(
     elif notify_type == "session_end":
         return Notification(
             event_type=notify_type,
-            title="Claude Session",
+            title="Codex Session",
             message="Session ended",
             priority=-2,
         )

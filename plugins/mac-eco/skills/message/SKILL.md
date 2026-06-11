@@ -9,6 +9,6 @@ description: Use when the user asks to send a text message or iMessage via the m
 scripts/imessage.sh "<recipient>" "<message>"
 ```
 
-Constraint: Use `AskUserQuestion` to confirm with the user before sending.
+Constraint: Confirm with the user before sending.
 
 Note: Requires Accessibility permissions for Terminal.

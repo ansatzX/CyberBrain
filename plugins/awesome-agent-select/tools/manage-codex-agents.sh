@@ -8,20 +8,17 @@ usage() {
     cat <<'EOF'
 Usage:
   bash plugins/awesome-agent-select/tools/manage-codex-agents.sh install [--codex-home PATH] [--source-dir PATH]
-  bash plugins/awesome-agent-select/tools/manage-codex-agents.sh sync [--bootstrap] [--codex-home PATH] [--source-dir PATH]
   bash plugins/awesome-agent-select/tools/manage-codex-agents.sh uninstall [--codex-home PATH]
   bash plugins/awesome-agent-select/tools/manage-codex-agents.sh doctor [--codex-home PATH] [--source-dir PATH]
 
 Commands:
   install    Explicitly install Codex agent TOML files into ~/.codex/agents
-  sync       Refresh files already owned by this installer; used by SessionStart hooks
   uninstall  Remove files owned by this installer and legacy awesome-agent-select symlinks
   doctor     Check managed files, conflicts, and legacy symlinks
 EOF
 }
 
 log() {
-    [ "${QUIET_MODE:-0}" -eq 0 ] || return 0
     printf '%s\n' "$*"
 }
 
@@ -178,9 +175,7 @@ remove_stale_owned_files() {
     return "$removed"
 }
 
-run_install_like() {
-    local mode="$1"
-
+run_install() {
     mkdir -p "$AGENTS_DIR"
     collect_source_files
     validate_source_files
@@ -222,43 +217,24 @@ run_install_like() {
             continue
         fi
 
-        if [ "$mode" = "sync" ]; then
-            if manifest_contains_name "$basename"; then
-                copy_into_place "$file_path" "$target_path"
-                restored=$((restored + 1))
-                OWNED_FILES+=("$basename")
-            fi
-            continue
-        fi
-
         copy_into_place "$file_path" "$target_path"
         installed=$((installed + 1))
         OWNED_FILES+=("$basename")
     done
 
     if [ "${#OWNED_FILES[@]}" -eq 0 ]; then
-        if [ "$mode" = "install" ]; then
-            fail "No agents installed because every target conflicted with an unmanaged file"
-        fi
-        [ "$skipped_conflicts" -gt 0 ] && warn "Skipped ${skipped_conflicts} unmanaged conflict(s) during sync"
-        return 0
+        fail "No agents installed because every target conflicted with an unmanaged file"
     fi
 
     write_manifest
 
-    if [ "$mode" = "install" ]; then
-        log "Installed ${#OWNED_FILES[@]} managed agent files into ${AGENTS_DIR}"
-        [ "$installed" -gt 0 ] && log "New files copied: ${installed}"
-        [ "$updated" -gt 0 ] && log "Previously managed files refreshed: ${updated}"
-        [ "$adopted_symlinks" -gt 0 ] && log "Legacy symlinks migrated to managed copies: ${adopted_symlinks}"
-        [ "$skipped_conflicts" -gt 0 ] && warn "Unmanaged conflicts left untouched: ${skipped_conflicts}"
-        log "Start a new Codex session to load newly installed agent roles."
-    else
-        [ "$updated" -gt 0 ] && log "Synced ${updated} managed agent files"
-        [ "$restored" -gt 0 ] && log "Restored ${restored} missing managed agent file(s)"
-        [ "$adopted_symlinks" -gt 0 ] && log "Migrated ${adopted_symlinks} legacy symlink(s) to managed copies"
-        [ "$skipped_conflicts" -gt 0 ] && warn "Skipped ${skipped_conflicts} unmanaged conflict(s) during sync"
-    fi
+    log "Installed ${#OWNED_FILES[@]} managed agent files into ${AGENTS_DIR}"
+    [ "$installed" -gt 0 ] && log "New files copied: ${installed}"
+    [ "$updated" -gt 0 ] && log "Previously managed files refreshed: ${updated}"
+    [ "$restored" -gt 0 ] && log "Restored ${restored} missing managed agent file(s)"
+    [ "$adopted_symlinks" -gt 0 ] && log "Legacy symlinks migrated to managed copies: ${adopted_symlinks}"
+    [ "$skipped_conflicts" -gt 0 ] && warn "Unmanaged conflicts left untouched: ${skipped_conflicts}"
+    log "Start a new Codex session to load newly installed agent roles."
 
     return 0
 }
@@ -353,7 +329,6 @@ shift || true
 
 CODEX_HOME="${CODEX_HOME:-${HOME}/.codex}"
 SOURCE_DIR=""
-QUIET_MODE=0
 
 while [ "$#" -gt 0 ]; do
     case "$1" in
@@ -366,10 +341,6 @@ while [ "$#" -gt 0 ]; do
             [ "$#" -ge 2 ] || fail "--source-dir requires a value"
             SOURCE_DIR="$2"
             shift 2
-            ;;
-        --bootstrap)
-            QUIET_MODE=1
-            shift
             ;;
         -h|--help)
             usage
@@ -390,10 +361,7 @@ MANIFEST_PATH="${AGENTS_DIR}/${MANIFEST_BASENAME}"
 
 case "$COMMAND" in
     install)
-        run_install_like "install"
-        ;;
-    sync)
-        run_install_like "sync"
+        run_install
         ;;
     uninstall)
         run_uninstall

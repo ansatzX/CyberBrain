@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code Permission Notification Hook
+Codex Permission Notification Hook
 
 Sends an escalation request to the escalation service when Claude
 is waiting for permission approval.
@@ -15,7 +15,7 @@ Receives via stdin:
 {
   "session_id": "...",
   "tool_use_id": "...",
-  "message": "Claude needs permission to...",
+  "message": "Codex needs permission to...",
   "notification_type": "permission_prompt"
 }
 """

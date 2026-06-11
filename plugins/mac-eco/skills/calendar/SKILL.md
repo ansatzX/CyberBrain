@@ -16,6 +16,6 @@ scripts/ical.sh ensure                            # create Agent calendar
 
 - Date formats: `"2026-01-05 14:00"`, `"today 14:00"`, `"tomorrow 10:30"`
 
-Constraint: Use `AskUserQuestion` to confirm before adding events.
+Constraint: Confirm with the user before adding events.
 
 Note: Requires Accessibility permissions for Terminal.

@@ -1,5 +1,5 @@
 # Notifications Plugin Configuration Example
-# Copy this to ~/.claude/notifications/config.toml and customize
+# Copy this to ~/.codex/notifications/config.toml and customize
 
 # ──────────────────────────────────────────────────────
 # Global settings
@@ -37,9 +37,9 @@ enabled = true
 enabled = true
 webhook_url = "https://hooks.slack.com/services/XXX/YYY/ZZZ"
 # Optional: default channel
-channel = "#claude-alerts"
+channel = "#codex-alerts"
 # Optional: username
-username = "Claude Code"
+username = "Codex"
 
 [backend.lark]
 enabled = true
@@ -50,5 +50,5 @@ enabled = true
 # Jenkins base URL
 url = "https://jenkins.ansatz.work"
 # Job name (will be URL-encoded automatically)
-job = "claude code"
+job = "codex"
 # Trigger token from Keychain (jenkins_trigger_token)

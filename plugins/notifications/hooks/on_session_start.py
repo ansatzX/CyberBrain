@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Claude Code SessionStart Hook - Start escalation service and register session.
+Codex SessionStart Hook - Start escalation service and register session.
 
 Receives via stdin:
 {
@@ -25,7 +25,7 @@ import config
 
 
 def get_claude_pid() -> int | None:
-    """Walk up process tree to find Claude Code's PID."""
+    """Walk up process tree to find Codex's PID."""
     pid = os.getppid()
     visited = set()
 

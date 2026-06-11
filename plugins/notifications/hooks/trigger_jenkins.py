@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-Claude Code Hook - Trigger Jenkins Job on Events.
+Codex Hook - Trigger Jenkins Job on Events.
 
-Triggers a Jenkins job when specified Claude Code events occur.
+Triggers a Jenkins job when specified Codex events occur.
 
 Supported events:
-- Stop: Claude finished responding
+- Stop: Codex finished responding
 - PostToolUse: A tool finished executing
 - SessionEnd: Session ended
 
 Credential Providers (configurable):
 - keychain: macOS Keychain (default)
 - env: Environment variables
-- json: JSON file (~/.claude/jenkins-config.json)
+- json: JSON file (~/.codex/jenkins-config.json)
 
 Configuration by provider:
 
@@ -30,7 +30,7 @@ Configuration by provider:
    - JENKINS_JOB
    - JENKINS_TRIGGER_TOKEN
 
-3. JSON file (~/.claude/jenkins-config.json):
+3. JSON file (~/.codex/jenkins-config.json):
    {
      "jenkins_url": "https://jenkins.example.com",
      "jenkins_user": "your-username",
@@ -151,7 +151,7 @@ class EnvCredentialProvider(CredentialProvider):
 class JsonFileCredentialProvider(CredentialProvider):
     """Read credentials from a JSON file."""
 
-    DEFAULT_PATH = Path("~/.claude/jenkins-config.json").expanduser()
+    DEFAULT_PATH = Path("~/.codex/jenkins-config.json").expanduser()
 
     def __init__(self, file_path: Path | None = None):
         self.file_path = file_path or self.DEFAULT_PATH
@@ -351,7 +351,7 @@ def print_setup_instructions(provider_name: str) -> None:
         print("  export JENKINS_JOB=\"job-name\"", file=sys.stderr)
         print("  export JENKINS_TRIGGER_TOKEN=\"trigger-token\"", file=sys.stderr)
     elif provider_name == "json":
-        print("  Create ~/.claude/jenkins-config.json with:", file=sys.stderr)
+        print("  Create ~/.codex/jenkins-config.json with:", file=sys.stderr)
         print("  {", file=sys.stderr)
         print('    "jenkins_url": "https://jenkins.example.com",', file=sys.stderr)
         print('    "jenkins_user": "your-username",', file=sys.stderr)
@@ -367,7 +367,7 @@ def main():
         return
 
     # Check if disabled
-    disable_file = Path("~/.claude/disable-jenkins-trigger").expanduser()
+    disable_file = Path("~/.codex/disable-jenkins-trigger").expanduser()
     if disable_file.exists():
         print("Jenkins trigger disabled (disable file exists)", file=sys.stderr)
         return

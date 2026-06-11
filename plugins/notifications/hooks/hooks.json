@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/on_session_start.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/on_session_start.py",
             "timeout": 15
           }
         ]
@@ -16,12 +16,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/on_session_end.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/on_session_end.py",
             "timeout": 15
           },
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/router_hook.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/router_hook.py",
             "timeout": 15
           }
         ]
@@ -32,19 +32,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/on_stop.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/on_stop.py",
             "timeout": 30,
             "disabled": true
           },
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/trigger_jenkins.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/trigger_jenkins.py",
             "timeout": 15,
             "disabled": true
           },
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/router_hook.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/router_hook.py",
             "timeout": 15
           }
         ]
@@ -56,12 +56,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/on_permission.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/on_permission.py",
             "timeout": 15
           },
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/router_hook.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/router_hook.py",
             "timeout": 15
           }
         ]
@@ -72,7 +72,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
             "timeout": 10
           }
         ]
@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
             "timeout": 10
           }
         ]
@@ -94,18 +94,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/trigger_jenkins.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/trigger_jenkins.py",
             "timeout": 15,
             "disabled": true
           },
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/router_hook.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/router_hook.py",
             "timeout": 15
           }
         ]
@@ -116,7 +116,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
             "timeout": 10
           }
         ]
@@ -127,7 +127,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
             "timeout": 10
           }
         ]
@@ -138,7 +138,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 ${CLAUDE_PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
+            "command": "python3 ${PLUGIN_ROOT}/scripts/hooks/cancel_escalation.py",
             "timeout": 10
           }
         ]

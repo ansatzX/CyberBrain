@@ -14,7 +14,7 @@
 set -euo pipefail
 
 # Configuration directory
-CONFIG_DIR="$HOME/.claude/notifications"
+CONFIG_DIR="$HOME/.codex/notifications"
 
 # Plugin directory (relative to this script)
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -352,7 +352,7 @@ setup_config() {
     echo "Config File Setup"
     echo
 
-    local config_dir="$HOME/.claude/notifications"
+    local config_dir="$HOME/.codex/notifications"
     local config_file="$config_dir/config.toml"
     local example_file="$PLUGIN_DIR/config.example.toml"
 

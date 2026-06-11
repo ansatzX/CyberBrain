@@ -1,23 +1,21 @@
 # Shared Agent CLI Protocol
 
-Use this protocol for every non-interactive coding-agent CLI run.
+Use this protocol for every non-interactive coding-agent CLI run from Codex.
 
-## Host-Agent Compatibility
+## Codex Tooling
 
-These skills must work in both Claude Code-style and Codex-style hosts. When instructions mention a host tool name, map it to the current host.
+When these skills describe actions, use Codex-native tools directly.
 
-| Intent | Claude Code-style name | Codex equivalent |
-| --- | --- | --- |
-| Ask the user a question | `AskUserQuestion` | `request_user_input` when that Codex tool is available and appropriate; otherwise ask directly in the assistant response. If an action needs execution approval, use `exec_command` with `sandbox_permissions="require_escalated"` and a `justification`. |
-| Run shell command | `Bash` | `exec_command`; use `write_stdin` for yielded interactive sessions. |
-| Read/search files | `Read`, `Glob`, `Grep` | `exec_command` with `sed`, `rg --files`, `rg`; use MCP/document tools for binary files when available. |
-| Edit files | `Edit`, `MultiEdit`, `Write` | `apply_patch` for manual edits; approved formatters or bulk tools for mechanical rewrites. |
-| Track tasks | `TodoWrite` | `update_plan`. |
-| Invoke skill | `Skill` | Skills load natively; read the relevant `SKILL.md` only when required by the host's skill rules. |
-| Spawn subagent | `Task` | `spawn_agent`; then `wait_agent`; use `close_agent` when done. |
-| Continue spawned agent | Task follow-up | `send_input`. |
-
-Do not write a skill that only names one host's tools when the action is generic.
+| Intent | Codex tool |
+| --- | --- |
+| Ask the user a question | `request_user_input` when that Codex tool is available and appropriate; otherwise ask directly in the assistant response. If an action needs execution approval, use `exec_command` with `sandbox_permissions="require_escalated"` and a `justification`. |
+| Run shell command | `exec_command`; use `write_stdin` for yielded interactive sessions. |
+| Read/search files | `exec_command` with `sed`, `rg --files`, `rg`; use MCP/document tools for binary files when available. |
+| Edit files | `apply_patch` for manual edits; approved formatters or bulk tools for mechanical rewrites. |
+| Track tasks | `update_plan`. |
+| Invoke skill | Skills load natively; read the relevant `SKILL.md` only when required by the host's skill rules. |
+| Spawn subagent | `spawn_agent`; then `wait_agent`; use `close_agent` when done. |
+| Continue spawned agent | `send_input`. |
 
 ## Durable Output
 

@@ -21,7 +21,7 @@ class SlackBackend(NotificationBackend):
         self._enabled = False
         self._webhook_url: str | None = None
         self._channel: str | None = None
-        self._username: str = "Claude Code"
+        self._username: str = "Codex"
 
     def name(self) -> str:
         return "slack"

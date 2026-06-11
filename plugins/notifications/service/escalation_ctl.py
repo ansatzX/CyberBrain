@@ -16,7 +16,7 @@ Usage:
                                       Unregister a session
 
 Examples:
-    # Simulate full Claude Code flow with PID tracking
+    # Simulate full Codex flow with PID tracking
     escalation_ctl start
     escalation_ctl register --session-id my-session --pid $$
     escalation_ctl add my-session "Waiting for permission"
