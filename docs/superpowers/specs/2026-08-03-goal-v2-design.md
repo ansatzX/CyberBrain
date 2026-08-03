@@ -1,119 +1,84 @@
 # Goal 系统 v2 设计（pi 扩展，对齐 codex goal 架构）
 
 日期：2026-08-03
-状态：已批准（brainstorming 完成，待实现计划）
+状态：已实现并验证
 
-## 背景
+## 原则
 
-pi（coding agent）的自定义 slash 扩展已实现 goal 系统 v1（`~/.pi/agent/extensions/codex-slash.ts`），但 v1 存在架构缺陷：
+- 扩展代码是状态机 owner；模型永远不直接写状态文件。
+- 日常轮次零注入；设置、恢复与自动续跑通过显式消息驱动。
+- `agent_settled` 后只要 goal 仍为 active，就立即续跑；终止靠 complete / blocked / pause / clear。
+- 模型只可通过 `create_goal`、`get_goal`、`update_goal` 交互。
 
-1. **模型直接 write 状态文件** —— 无状态机 owner，模型可能写坏格式/乱改状态
-2. **每轮常驻注入** —— goal 状态每轮进上下文，浪费 token
-3. **无事件驱动** —— 注入、续跑、状态迁移没有按事件组织
-4. **无 blocked 审计** —— 模型可以随意声明阻塞/完成
+## 存储
 
-本设计对齐 codex 的 goal 架构（源码证据：`codex-rs/ext/goal/`，2835 行），核心原则：
+状态按 session 隔离，路径为：
 
-- **确定性逻辑归代码**（状态机 owner = 扩展 TS），**非确定性意图归模型**（工具调用）
-- **模型永远不碰存储介质**
-- **注入事件驱动**：日常轮次零注入，只有设置/续跑两个事件注入
-- **模型状态权力极小**：只能声明 complete（须理由）或 blocked（须 3 轮阈值）
-
-## 存储与状态机
-
-**存储**：`~/.pi/agent/goals/<会话文件哈希>.md`（per-session，等价 codex 的 thread_goals 行；单用户单进程场景文件够用，不引入 SQLite）
-
-```yaml
----
-thread_id: <会话文件哈希>
-goal_id: <uuid>
-objective: <目标文本>
-status: active            # active | blocked | complete | abandoned
-created_at: <ISO>
-updated_at: <ISO>
-blocked_streak: 0         # 同一阻塞连续轮数
-blocked_condition: null   # 当前阻塞条件（换条件重置计数）
-complete_reason: null     # 模型标记 complete 时的理由
----
+```text
+~/.pi/agent/goals/<sha1(session-file)>.json
 ```
 
-**状态迁移权限**：
+写入使用临时文件 + rename 原子替换，文件权限 `0600`。旧 `.md` 状态在首次读取时自动迁移为 JSON。
 
-| 迁移 | 谁触发 | 途径 |
-|---|---|---|
-| 创建 active | 用户 | `/ansatz:goal set` |
-| active → blocked | 模型（streak ≥ 3） | `update_goal` 工具 |
-| blocked → active | 用户 | clear + set（不单独做 resume） |
-| active → complete | 模型（须理由） | `update_goal` 工具 → notify 用户 |
-| active → abandoned | 用户 | `/ansatz:goal clear [理由]` |
+```json
+{
+  "thread_id": "session hash",
+  "goal_id": "uuid",
+  "objective": "目标文本",
+  "status": "active",
+  "created_at": "ISO timestamp",
+  "updated_at": "ISO timestamp",
+  "blocked_streak": 0,
+  "blocked_condition": null,
+  "last_blocked_turn_id": null,
+  "status_reason": null
+}
+```
 
-不含预算：token_budget / tokens_used / budget_limited 全部砍掉（用户决策：YAGNI）。
+状态：`active | paused | blocked | complete | abandoned`。
 
-## 工具层（模型入口）
+## 工具
 
-三个工具（`pi.registerTool`，约束写进工具描述）：
+### `get_goal`
 
-**`get_goal`** — 无参。返回 objective / status / created_at / updated_at / blocked_streak。模型自查状态用（替代日常注入）。
+无参数，返回目标、状态、时间、blocked audit 与 status reason。
 
-**`create_goal`** — 参数 `objective`（必填）。描述约束"仅当用户或系统明确要求时创建；不得从普通任务推断目标"。已有 active goal → 拒绝（对齐 codex "Fails if an unfinished goal exists"）。
+### `create_goal`
 
-**`update_goal`** — 参数 `status`（枚举 complete | blocked）+ `reason`（必填）。描述约束：
-- `complete`：仅当目标真正达成且无剩余工作（模型须自查证据）
-- `blocked`：仅当同一阻塞条件连续 3 轮；用户恢复后重新计数
+参数：`objective`。只有用户或系统明确要求时可调用。active、paused、blocked 都属于 unfinished goal，禁止直接覆盖；用户必须 resume 或 clear。
 
-校验（扩展代码，模型无法绕过）：
-- status 非法 → 错误
-- blocked 且 streak < 3 → 错误"同一阻塞需连续 3 轮，当前第 N 轮"
-- complete 无 reason → 拒绝
-- complete 通过 → 写文件 + notify 用户（"模型声明完成：<理由>"）+ 停止续跑
+### `update_goal`
 
-## 注入层（事件驱动）
+参数：`status: complete | blocked`、`reason`。
 
-形式：`before_agent_start` 返回 message（`customType: "goal-context"`, `display: false`）+ `context` 事件过滤历史旧 goal-context（只留最新一条）——即 custom message 注入 + context 过滤（通道 2 + 3）。
+- complete：必须附完成理由。
+- blocked：必须跨三个**不同 turn** 调用；同一 turn 的重复/并行调用最多计一次。
+- 如果中间出现一个没有 blocked 声明的 turn，blocked audit 重置。
 
-两个注入事件：
+turn identity 来源于 pi 的 `turn_start { turnIndex, timestamp }` 事件。
 
-| 事件 | 触发时机 | 内容 |
-|---|---|---|
-| `objective_updated` | `/ansatz:goal set` 后、`create_goal` 通过后 | 新目标 + 指示调整当前轮转向它 |
-| `continuation` | `agent_settled` 立即触发（零间隔，对齐 codex on_thread_idle） | 目标 + 行为规范（保持目标完整、从证据工作、完成审计、blocked 审计） |
+## 命令
 
-**日常轮次零注入**。模型要状态 → 调 `get_goal`。
+- `/ansatz:goal set <objective>`
+- `/ansatz:goal view`
+- `/ansatz:goal pause`
+- `/ansatz:goal resume`
+- `/ansatz:goal clear [reason]`
 
-## 续跑
+pause 保留目标但停止自动续跑；resume 重置 blocked audit 并立即发送 continuation。
 
-- 触发：`agent_settled` 事件立即（零间隔，对齐 codex on_thread_idle；无冷却，终止只靠 update_goal/用户 clear）
-- 注入 continuation 消息（`pi.sendUserMessage`, `deliverAs: "followUp"`）
-- 停止条件：status 变为 complete / blocked / abandoned，或用户 clear
+## 自动续跑
 
-## 命令层（用户入口）
+```text
+agent_settled
+  -> load current session goal
+  -> status == active ? send continuation as followUp : stop
+```
 
-| 命令 | 行为 |
-|---|---|
-| `/ansatz:goal set <目标>` | 写文件（active）→ 注入 objective_updated 触发当轮；已有 active → 拒绝并提示先 clear |
-| `/ansatz:goal view` | UI 展示 objective / status / 时间线 / blocked_streak |
-| `/ansatz:goal clear [理由]` | 归档 abandoned（终态，续跑停止） |
-
-## 错误处理
-
-| 场景 | 处理 |
-|---|---|
-| 工具参数非法 | 返回错误文本给模型（模型可自纠） |
-| blocked 但 streak < 3 | 错误并告知当前轮数 |
-| complete 无 reason | 拒绝 |
-| create 时已有 active | 拒绝 |
-| goals 文件损坏/缺失 | 重建默认空状态 + notify 用户 |
-| 续跑期间用户 clear | 续跑检查 status 后自然停止（单进程串行无竞态） |
+没有时间冷却；与 codex `on_thread_idle` 一致。用户已明确接受持续模型调用的成本。
 
 ## 测试
 
-- 单元（存储/校验纯函数）：状态迁移、blocked streak 计数/重置、complete 校验、注入过滤
-- 实测（`pi -p -e` 副作用验证）：set 写文件、clear 归档、工具校验
-- 手动 TUI 清单：set → 模型干活 → update_goal(complete) → 续跑停止 + notify；blocked 三轮才生效
-
-## 与 v1 的切割
-
-- 删除：模型 write 文件的指令（goalInjection 里的"用 write 工具更新 goals.md"）
-- 删除：每轮 systemPrompt 注入 → 改为事件驱动 custom message + context 过滤
-- 删除：预算字段/steering
-- 保留：per-session 存储、事件驱动零间隔续跑、/ansatz:goal 命令族
+- `~/.pi/agent/lib/goal-core.test.ts`：JSON 往返、旧格式迁移、状态迁移、按 turn blocked audit、pause/resume、工具返回文本、续跑条件。
+- 固定 session 的 print smoke：set → pause → resume → clear。
+- 工具真实调用已验证：get/create/update complete；blocked 按 turn 逻辑由纯函数测试覆盖。
