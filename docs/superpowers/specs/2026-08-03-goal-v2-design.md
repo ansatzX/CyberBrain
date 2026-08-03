@@ -76,13 +76,13 @@ complete_reason: null     # 模型标记 complete 时的理由
 | 事件 | 触发时机 | 内容 |
 |---|---|---|
 | `objective_updated` | `/ansatz:goal set` 后、`create_goal` 通过后 | 新目标 + 指示调整当前轮转向它 |
-| `continuation` | `agent_settled` + goal active + 5 分钟冷却 | 目标 + 行为规范（保持目标完整、从证据工作、完成审计、blocked 审计） |
+| `continuation` | `agent_settled` 立即触发（零间隔，对齐 codex on_thread_idle） | 目标 + 行为规范（保持目标完整、从证据工作、完成审计、blocked 审计） |
 
 **日常轮次零注入**。模型要状态 → 调 `get_goal`。
 
 ## 续跑
 
-- 触发：`agent_settled` 事件 + goal active + 距上次 updated_at ≥ 5 分钟（防风暴冷却）
+- 触发：`agent_settled` 事件立即（零间隔，对齐 codex on_thread_idle；无冷却，终止只靠 update_goal/用户 clear）
 - 注入 continuation 消息（`pi.sendUserMessage`, `deliverAs: "followUp"`）
 - 停止条件：status 变为 complete / blocked / abandoned，或用户 clear
 
@@ -116,4 +116,4 @@ complete_reason: null     # 模型标记 complete 时的理由
 - 删除：模型 write 文件的指令（goalInjection 里的"用 write 工具更新 goals.md"）
 - 删除：每轮 systemPrompt 注入 → 改为事件驱动 custom message + context 过滤
 - 删除：预算字段/steering
-- 保留：per-session 存储、5 分钟冷却续跑、/ansatz:goal 命令族
+- 保留：per-session 存储、事件驱动零间隔续跑、/ansatz:goal 命令族
