@@ -103,15 +103,56 @@ test("normalizeModel clamps max output below advertised context", () => {
   assert.equal(model.contextWindow, 32_000);
 });
 
-test("normalizeModel reports GPT-5.6 total context and preserves output/pricing", () => {
+test("normalizeModel applies codex authoritative context to registered GPT models", () => {
+  const advertised: Record<string, number> = {
+    "gpt-5.6-sol": 1_050_000,
+    "gpt-5.6-terra": 1_050_000,
+    "gpt-5.6-luna": 1_050_000,
+    "gpt-5.5": 1_050_000,
+    "gpt-5.4": 400_000,
+    "gpt-5.4-mini": 400_000,
+    "gpt-5.2": 400_000,
+  };
+
+  for (const [id, contextLength] of Object.entries(advertised)) {
+    const model = normalizeModel(
+      availableModel(id),
+      detailedModel(id, {
+        model_name: id,
+        context_length: contextLength,
+        max_output: 128_000,
+        features: "tools,thinking,structured_outputs",
+        input_modalities: "text,image",
+      }),
+      normalizeOptions,
+    );
+    // Codex registers a 272K working context window for these models.
+    assert.equal(model.contextWindow, 272_000, `context for ${id}`);
+    assert.equal(model.maxTokens, 128_000, `maxTokens for ${id}`);
+  }
+});
+
+test("normalizeModel keeps advertised context for unregistered models", () => {
+  const model = normalizeModel(
+    availableModel("deepseek-v4-flash"),
+    detailedModel("deepseek-v4-flash", {
+      context_length: 1_000_000,
+      max_output: 384_000,
+    }),
+    normalizeOptions,
+  );
+
+  assert.equal(model.contextWindow, 1_000_000);
+  assert.equal(model.maxTokens, 384_000);
+});
+
+test("normalizeModel GPT-5.6 preserves name and pricing", () => {
   const model = normalizeModel(
     availableModel("gpt-5.6-luna"),
     detailedModel("gpt-5.6-luna", {
       model_name: "GPT 5.6 Luna",
       context_length: 1_050_000,
       max_output: 128_000,
-      features: "tools,thinking,structured_outputs",
-      input_modalities: "text,image",
       pricing: {
         input: 1,
         output: 6,
@@ -123,8 +164,6 @@ test("normalizeModel reports GPT-5.6 total context and preserves output/pricing"
   );
 
   assert.equal(model.name, "GPT 5.6 Luna");
-  assert.equal(model.contextWindow, 1_050_000);
-  assert.equal(model.maxTokens, 128_000);
   assert.deepEqual(model.cost, {
     input: 1,
     output: 6,

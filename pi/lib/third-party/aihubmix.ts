@@ -88,6 +88,22 @@ export type DetailedModel = {
   };
 };
 
+/**
+ * Authoritative working context windows for models registered in the OpenAI
+ * Codex model registry (codex-rs/models-manager/models.json). AIHubMix's
+ * metadata endpoint advertises inflated values (e.g. 1.05M/400K) that do not
+ * match the registry, so these override `context_length` for matching models.
+ */
+const CODEX_AUTHORITATIVE_CONTEXT_WINDOWS: Record<string, number> = {
+  "gpt-5.6-sol": 272_000,
+  "gpt-5.6-terra": 272_000,
+  "gpt-5.6-luna": 272_000,
+  "gpt-5.5": 272_000,
+  "gpt-5.4": 272_000,
+  "gpt-5.4-mini": 272_000,
+  "gpt-5.2": 272_000,
+};
+
 export type NormalizeOptions = {
   priceMultiplier: number;
   defaultContextWindow: number;
@@ -133,8 +149,10 @@ export function normalizeModel(
 
   const advertisedContextWindow =
     parseTokenCount(metadata?.context_length) ?? options.defaultContextWindow;
+  const contextWindow =
+    CODEX_AUTHORITATIVE_CONTEXT_WINDOWS[id] ?? advertisedContextWindow;
   const maxTokens = normalizeMaxTokens(
-    advertisedContextWindow,
+    contextWindow,
     parseTokenCount(metadata?.max_output),
     options.defaultMaxTokens,
   );
@@ -153,7 +171,7 @@ export function normalizeModel(
     input,
     // Pi defines contextWindow as the provider's total input+output window and
     // independently clamps maxTokens to the request's remaining capacity.
-    contextWindow: advertisedContextWindow,
+    contextWindow,
     maxTokens,
     cost: {
       input: parsePrice(metadata?.pricing?.input, options.priceMultiplier),
