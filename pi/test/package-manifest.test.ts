@@ -18,6 +18,22 @@ test("manifest defines the local cyberbrain-pi package", () => {
 	assert.deepEqual(pkg.pi.extensions, ["./extensions/*.ts"]);
 });
 
+test("pi-extension-dev is packaged with valid relative references", () => {
+	const skillRoot = resolve(piRoot, "skills/pi-extension-dev");
+	assert.equal(existsSync(skillRoot), true, "pi-extension-dev must be packaged");
+	const skill = readFileSync(resolve(skillRoot, "SKILL.md"), "utf8");
+	assert.match(skill, /^---\nname: pi-extension-dev/m);
+	for (const file of [
+		"docs/api-reference.md",
+		"docs/events.md",
+		"docs/pitfalls.md",
+		"docs/verification.md",
+		"examples/namespaced-command.ts",
+	]) {
+		assert.equal(existsSync(resolve(skillRoot, file)), true, file);
+	}
+});
+
 test("manifest exposes every approved Cyberbrain skill root from one source", () => {
 	assert.equal(existsSync(packageJsonPath), true, "pi/package.json must exist");
 	const pkg = JSON.parse(readFileSync(packageJsonPath, "utf8"));
