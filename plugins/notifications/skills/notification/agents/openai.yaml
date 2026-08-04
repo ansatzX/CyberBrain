@@ -1,4 +1,0 @@
-interface:
-  display_name: "Notification"
-  short_description: "Send push notification alerts"
-  default_prompt: "Use $notification to send a push notification when this task reaches the requested alert condition."

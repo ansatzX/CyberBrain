@@ -21,13 +21,6 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 | `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, and Kimi Code | Published |
 | `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
 
-## Disabled Plugins
-
-These plugins are under refactoring and are not published in the Codex marketplace:
-
-- `mac-eco`
-- `notifications`
-
 ## Requirements
 
 - Codex CLI 0.79.0 or newer, for `.codex-plugin` marketplace use
@@ -123,8 +116,6 @@ plugins/
   brain/
     .codex-plugin/plugin.json
     skills/
-  mac-eco/                             # disabled, under refactoring
-  notifications/                       # disabled, under refactoring
 ```
 
 ## Plugin Details

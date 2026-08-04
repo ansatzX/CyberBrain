@@ -94,10 +94,6 @@ Published plugins should remain narrowly scoped:
 - `tachikoma`: Codex-hosted skills for coordinating external AI CLIs
 - `brain`: Codex-hosted audit and reasoning skills
 
-Disabled plugins such as `mac-eco` and `notifications` are not part of the
-published Codex marketplace contract. Do not expand or refactor them unless
-the user asks for that plugin specifically.
-
 Keep repo-root marketplace metadata aligned with plugin manifests:
 
 - `.agents/plugins/marketplace.json`
