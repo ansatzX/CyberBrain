@@ -15,13 +15,14 @@ printf '%s\n' "$*" >> "$FAKE_PI_LOG"
 case "${1:-}" in
   install)
     python3 - "$FAKE_PI_HOME/settings.json" "$2" <<'PY'
-import json, sys
+import json, os, sys
 from pathlib import Path
 path=Path(sys.argv[1]); source=sys.argv[2]
 path.parent.mkdir(parents=True, exist_ok=True)
 data=json.loads(path.read_text()) if path.exists() else {}
 packages=data.setdefault('packages', [])
-if source not in packages: packages.append(source)
+stored=os.path.relpath(source, path.parent.resolve())
+if stored not in packages: packages.append(stored)
 path.write_text(json.dumps(data, indent=2)+'\n')
 PY
     ;;

@@ -181,7 +181,22 @@ def settings_contains_source(pi_home: Path, source: str) -> bool:
     except (OSError, json.JSONDecodeError):
         return False
     values = [item if isinstance(item, str) else item.get("source") for item in packages]
-    return source in values
+    for value in values:
+        if not isinstance(value, str):
+            continue
+        candidate = Path(value).expanduser()
+        if not candidate.is_absolute():
+            candidate = path.parent / candidate
+        resolved_candidate = candidate.resolve()
+        resolved_source = Path(source).resolve()
+        try:
+            if resolved_candidate.exists() and resolved_source.exists() and os.path.samefile(resolved_candidate, resolved_source):
+                return True
+        except OSError:
+            pass
+        if os.path.realpath(resolved_candidate) == os.path.realpath(resolved_source):
+            return True
+    return False
 
 
 def install(args: argparse.Namespace) -> None:
