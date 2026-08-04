@@ -1,0 +1,20 @@
+{
+  "name": "cyberbrain-pi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cyberbrain personal configuration adapter for Pi",
+  "keywords": ["pi-package", "coding-agent", "personal-config"],
+  "pi": {
+    "extensions": ["./extensions/*.ts"],
+    "skills": [
+      "./skills",
+      "../plugins/brain/skills",
+      "../plugins/tachikoma/skills",
+      "../plugins/awesome-agent-select/skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
