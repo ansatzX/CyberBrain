@@ -6,7 +6,12 @@
   <img src="assset/CyberBrain.png" alt="CyberBrain" width="400"/>
 </div>
 
-CyberBrain is a local plugin marketplace for Codex. It packages shared skills and agent definitions used across development workflows.
+CyberBrain is a personal agent configuration repository with first-class host adapters for OpenAI Codex and Pi. Shared skills remain single-source; each host keeps its native package, extension, and installer mechanisms.
+
+## Host Adapters
+
+- **Codex**: local marketplace plugins plus explicit agent-role installation.
+- **Pi**: local `cyberbrain-pi` package with extensions, providers, slash modes, and shared skills.
 
 ## Active Plugins
 
@@ -82,6 +87,20 @@ bash tools/cleanup-agent-symlinks.sh
 ```
 
 Still-enabled plugins will re-create their symlinks on the next session start.
+
+## Pi Installation
+
+Clone the repository and run the managed installer:
+
+```bash
+mkdir -p ~/soft
+git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
+cd ~/soft/CyberBrain
+bash tools/manage-pi.sh install
+bash tools/manage-pi.sh doctor
+```
+
+The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. See [PI_SUPPORT.md](PI_SUPPORT.md) for providers, slash overrides, updates, and uninstall instructions.
 
 ## Plugin Layout
 
