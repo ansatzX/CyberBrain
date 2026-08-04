@@ -64,8 +64,6 @@ export function parsePrice(
     : 0;
 }
 
-export type ReserveOutputMode = "all" | "gpt5" | "off";
-
 export type AvailableModel = {
   id?: string;
   object?: string;
@@ -92,7 +90,6 @@ export type DetailedModel = {
 
 export type NormalizeOptions = {
   priceMultiplier: number;
-  reserveOutput: ReserveOutputMode;
   defaultContextWindow: number;
   defaultMaxTokens: number;
 };
@@ -126,23 +123,6 @@ function normalizeMaxTokens(
   );
 }
 
-function getEffectiveContextWindow(
-  modelId: string,
-  advertisedContextWindow: number,
-  maxTokens: number,
-  mode: ReserveOutputMode,
-): number {
-  const shouldReserve =
-    mode === "all" ||
-    (mode === "gpt5" && /^gpt-5(?:[.\-]|$)/i.test(modelId));
-
-  if (!shouldReserve) return advertisedContextWindow;
-
-  const remaining = advertisedContextWindow - maxTokens;
-  if (advertisedContextWindow < 32_768) return Math.max(1, remaining);
-  return Math.max(32_768, remaining);
-}
-
 export function normalizeModel(
   available: AvailableModel,
   metadata: DetailedModel | undefined,
@@ -171,12 +151,9 @@ export function normalizeModel(
     reasoning:
       features.includes("thinking") || features.includes("reasoning"),
     input,
-    contextWindow: getEffectiveContextWindow(
-      id,
-      advertisedContextWindow,
-      maxTokens,
-      options.reserveOutput,
-    ),
+    // Pi defines contextWindow as the provider's total input+output window and
+    // independently clamps maxTokens to the request's remaining capacity.
+    contextWindow: advertisedContextWindow,
     maxTokens,
     cost: {
       input: parsePrice(metadata?.pricing?.input, options.priceMultiplier),
@@ -517,22 +494,6 @@ function parsePositiveNumber(value: string | undefined, fallback: number): numbe
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function parseReserveOutputMode(value: string | undefined): ReserveOutputMode {
-  switch ((value ?? "all").trim().toLowerCase()) {
-    case "0":
-    case "false":
-    case "off":
-      return "off";
-    case "gpt5":
-      return "gpt5";
-    case "1":
-    case "true":
-    case "all":
-    default:
-      return "all";
-  }
-}
-
 export async function registerAIHubMix(
   pi: ProviderRegistrar,
   environment: Environment = process.env,
@@ -572,9 +533,6 @@ export async function registerAIHubMix(
         priceMultiplier: parsePositiveNumber(
           environment.AIHUBMIX_PRICE_MULTIPLIER,
           1,
-        ),
-        reserveOutput: parseReserveOutputMode(
-          environment.AIHUBMIX_RESERVE_OUTPUT,
         ),
         defaultContextWindow: 128_000,
         defaultMaxTokens: 16_384,

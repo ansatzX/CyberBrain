@@ -22,7 +22,6 @@ import { installDeepSeekWebSearch, registerDeepSeekResponses } from "../lib/thir
 
 const normalizeOptions = {
   priceMultiplier: 1,
-  reserveOutput: "all" as const,
   defaultContextWindow: 128_000,
   defaultMaxTokens: 16_384,
 };
@@ -72,7 +71,7 @@ test("normalizeModel uses conservative defaults for unknown zero metadata", () =
     normalizeOptions,
   );
 
-  assert.equal(model.contextWindow, 111_616);
+  assert.equal(model.contextWindow, 128_000);
   assert.equal(model.maxTokens, 16_384);
 });
 
@@ -101,39 +100,10 @@ test("normalizeModel clamps max output below advertised context", () => {
   );
 
   assert.equal(model.maxTokens, 8_000);
-  assert.equal(model.contextWindow, 24_000);
+  assert.equal(model.contextWindow, 32_000);
 });
 
-test("normalizeModel supports all, gpt5, and off reservation modes", () => {
-  const metadata = detailedModel("ordinary-model", {
-    context_length: 128_000,
-    max_output: 16_000,
-  });
-
-  assert.equal(
-    normalizeModel(availableModel("ordinary-model"), metadata, {
-      ...normalizeOptions,
-      reserveOutput: "all",
-    }).contextWindow,
-    112_000,
-  );
-  assert.equal(
-    normalizeModel(availableModel("ordinary-model"), metadata, {
-      ...normalizeOptions,
-      reserveOutput: "gpt5",
-    }).contextWindow,
-    128_000,
-  );
-  assert.equal(
-    normalizeModel(availableModel("ordinary-model"), metadata, {
-      ...normalizeOptions,
-      reserveOutput: "off",
-    }).contextWindow,
-    128_000,
-  );
-});
-
-test("normalizeModel reserves GPT-5.6 output and preserves pricing", () => {
+test("normalizeModel reports GPT-5.6 total context and preserves output/pricing", () => {
   const model = normalizeModel(
     availableModel("gpt-5.6-luna"),
     detailedModel("gpt-5.6-luna", {
@@ -153,7 +123,7 @@ test("normalizeModel reserves GPT-5.6 output and preserves pricing", () => {
   );
 
   assert.equal(model.name, "GPT 5.6 Luna");
-  assert.equal(model.contextWindow, 922_000);
+  assert.equal(model.contextWindow, 1_050_000);
   assert.equal(model.maxTokens, 128_000);
   assert.deepEqual(model.cost, {
     input: 1,
@@ -173,7 +143,7 @@ test("normalizeModel keeps genuinely small contexts positive", () => {
     normalizeOptions,
   );
 
-  assert.equal(model.contextWindow, 6_000);
+  assert.equal(model.contextWindow, 8_000);
   assert.equal(model.maxTokens, 2_000);
 });
 
@@ -452,8 +422,8 @@ test("discovery uses live availability with cached metadata fallback", async () 
     "enriched",
     "new-default",
   ]);
-  assert.equal(models[0].contextWindow, 183_616);
-  assert.equal(models[1].contextWindow, 111_616);
+  assert.equal(models[0].contextWindow, 200_000);
+  assert.equal(models[1].contextWindow, 128_000);
   assert.equal(writes, 0);
 });
 
@@ -562,7 +532,6 @@ test("registerAIHubMix discovers and registers the configured provider", async (
       AIHUBMIX_ORIGIN: "https://example.test/",
       AIHUBMIX_DISCOVERY_TIMEOUT_MS: "1234",
       AIHUBMIX_PRICE_MULTIPLIER: "2",
-      AIHUBMIX_RESERVE_OUTPUT: "off",
       AIHUBMIX_CACHE_PATH: "/custom/cache.json",
     },
     {
@@ -615,7 +584,6 @@ test("registerAIHubMix normalizes invalid environment options", async () => {
       AIHUBMIX_API_KEY: "secret-key",
       AIHUBMIX_DISCOVERY_TIMEOUT_MS: "invalid",
       AIHUBMIX_PRICE_MULTIPLIER: "-2",
-      AIHUBMIX_RESERVE_OUTPUT: "unexpected",
       AIHUBMIX_CACHE_PATH: "/custom/cache.json",
     },
     {
@@ -632,7 +600,7 @@ test("registerAIHubMix normalizes invalid environment options", async () => {
   );
 
   const model = (registrations[0].models as Array<{ contextWindow: number }>)[0];
-  assert.equal(model.contextWindow, 111_616);
+  assert.equal(model.contextWindow, 128_000);
 });
 
 
