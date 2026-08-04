@@ -1,9 +1,9 @@
 ---
-name: kimi-cli
-description: Use when the user asks to run Kimi CLI in non-interactive mode or references Kimi for AI-assisted coding or agent tasks.
+name: kimi-code
+description: Use when the user asks to run Kimi Code in non-interactive mode or references Kimi for AI-assisted coding or agent tasks.
 ---
 
-# Kimi CLI Skill Guide
+# Kimi Code Skill Guide
 
 Before running Kimi, follow the shared logging and summary protocol in `../_shared/agent-cli.md`.
 

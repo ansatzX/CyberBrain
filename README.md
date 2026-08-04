@@ -18,7 +18,7 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 | Plugin | Contents | Status |
 |--------|----------|--------|
 | `awesome-agent-select` | Prompted subagents for review, QA, API docs, performance, tooling, and TypeScript work | Published |
-| `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, and Kimi CLI | Published |
+| `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, and Kimi Code | Published |
 | `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
 
 ## Disabled Plugins
@@ -32,7 +32,7 @@ These plugins are under refactoring and are not published in the Codex marketpla
 
 - Codex CLI 0.79.0 or newer, for `.codex-plugin` marketplace use
 - `jq` 1.8.1 or newer for local validation
-- Optional CLI tools used by `tachikoma`: Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi CLI
+- Optional CLI tools used by `tachikoma`: Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code
 - Keep all CLI tools used by `tachikoma` updated to their latest available release before relying on the corresponding skill.
 
 ## Codex Installation
@@ -144,7 +144,7 @@ Included skills:
 - `opencode`
 - `qwen`
 - `github-copilot-cli`
-- `kimi-cli`
+- `kimi-code`
 
 #### `tachikoma::codex` and `llm_router`
 
