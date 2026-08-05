@@ -5,8 +5,11 @@ Pi host adapter for the Cyberbrain personal agent configuration repository.
 ## Development
 
 ```bash
-node --test pi/test/*.test.ts
-for file in pi/extensions/*.ts pi/lib/*.ts pi/lib/third-party/*.ts; do node --check "$file"; done
+npm --prefix pi install --legacy-peer-deps
+npx --prefix pi tsx --test pi/test/*.test.ts
+for file in pi/extensions/*.ts pi/lib/*.ts pi/lib/third-party/*.ts; do
+  npx --prefix pi tsx --input-type=module -e "import '${file}'"
+done
 ```
 
 ## Local install

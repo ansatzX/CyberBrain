@@ -5,3 +5,7 @@ docs/
 .state-machine/
 .scripts/
 .pi-subagents/
+node_modules/
+package-lock.json
+.brain/
+__pycache__/

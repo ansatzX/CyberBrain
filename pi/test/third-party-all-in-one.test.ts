@@ -649,6 +649,29 @@ test("registerDeepSeekResponses registers the Responses provider", () => {
   assert.equal(registrations[0].name, "deepseek-responses");
   assert.equal(registrations[0].config.api, "openai-responses");
   assert.equal(registrations[0].config.apiKey, "$DEEPSEEK_API_KEY");
+  const models = registrations[0].config.models as Array<{
+    id: string;
+    contextWindow: number;
+    maxTokens: number;
+    cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
+    thinkingLevelMap: Record<string, string | null>;
+  }>;
+  // 对齐 pi-mono 官方 deepseek 目录（generate-models.ts deepseekV4Models）
+  assert.equal(models[0].id, "deepseek-v4-flash");
+  assert.equal(models[0].contextWindow, 1_000_000);
+  assert.equal(models[0].maxTokens, 384_000);
+  assert.deepEqual(models[0].cost, { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0 });
+  // DeepSeek 思考档位映射：官方有效档位仅 none/low/high/max。
+  // max 必须显式存在，否则 Pi 会把 max 压回 high；
+  // minimal/medium 置 null 禁用（API 对未知档位静默容忍但并非真实档位）；
+  // xhigh 对 flash 无意义（坍缩为 high），刻意不提供。
+  assert.deepEqual(models[0].thinkingLevelMap, {
+    minimal: null,
+    low: "low",
+    medium: null,
+    high: "high",
+    max: "max",
+  });
 });
 
 test("DeepSeek web search is default-on and can be disabled", () => {

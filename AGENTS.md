@@ -128,7 +128,6 @@ design-doc references in the same change.
 
 - `README.md`: user-facing marketplace, installation, and validation guide
 - `AGENTS.md`: repository work discipline for Codex contributors
-  constraints
 - `.agents/plugins/marketplace.json`: Codex marketplace registry
 - `plugins/awesome-agent-select/`: canonical role text, generated Codex roles,
   shared skills, and Codex installer

@@ -18,8 +18,7 @@ generated_agents.mkdir(parents=True, exist_ok=True)
 
 agents = [
     ("superpowers-implementer", "Implement one isolated plan task using Superpowers subagent-driven development.", "skills/subagent-driven-development/implementer-prompt.md"),
-    ("superpowers-spec-reviewer", "Review whether an implementation matches the requested plan or specification.", "skills/subagent-driven-development/spec-reviewer-prompt.md"),
-    ("superpowers-code-quality-reviewer", "Review implementation quality, maintainability, tests, and integration risk.", "skills/subagent-driven-development/code-quality-reviewer-prompt.md"),
+    ("superpowers-task-reviewer", "Review one implementation task for both specification compliance and code quality.", "skills/subagent-driven-development/task-reviewer-prompt.md"),
     ("superpowers-code-reviewer", "Review completed code changes before continuing or merging.", "skills/requesting-code-review/code-reviewer.md"),
     ("superpowers-plan-reviewer", "Review an implementation plan for completeness before execution.", "skills/writing-plans/plan-document-reviewer-prompt.md"),
     ("superpowers-spec-document-reviewer", "Review a brainstorming or spec document before planning.", "skills/brainstorming/spec-document-reviewer-prompt.md"),
@@ -45,4 +44,7 @@ for name, description, relative_path in agents:
     )
 PY
 
+rm -f \
+  "$project_root/.codex/agents/superpowers-spec-reviewer.toml" \
+  "$project_root/.codex/agents/superpowers-code-quality-reviewer.toml"
 cp -a "$vendor_root/superpowers/.brain-agents/." "$project_root/.codex/agents/"

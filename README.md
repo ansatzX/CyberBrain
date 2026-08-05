@@ -11,7 +11,7 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 ## Host Adapters
 
 - **Codex**: local marketplace plugins plus explicit agent-role installation.
-- **Pi**: local `cyberbrain-pi` package with extensions, providers, slash modes, and shared skills.
+- **Pi**: local `cyberbrain-pi` package with extensions, providers, slash modes, subagents, and shared skills.
 
 ## Active Plugins
 
@@ -81,17 +81,29 @@ bash tools/cleanup-agent-symlinks.sh
 
 ## Pi Installation
 
-Clone the repository and run the managed installer:
+Clone the repository, install package dependencies (including `pi-subagents`), then run the managed installer:
 
 ```bash
 mkdir -p ~/soft
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
 cd ~/soft/CyberBrain
+npm --prefix pi install --legacy-peer-deps
 bash tools/manage-pi.sh install
 bash tools/manage-pi.sh doctor
 ```
 
-The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. Its `pick-model` skill picks model and thinking level per delegated launch (parent-model inheritance unless an approved model policy exists), and `agent-cluster` drives multi-agent launch, supervision, and fan-in; neither persists model choices on its own. Inspect `tools/manage-pi.sh`, `tools/manage-pi.py`, and `pi/` for the current installer, provider, slash, update, and uninstall behavior.
+The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. Its `pick-model` skill picks model and thinking level per delegated launch (parent-model inheritance unless an approved model policy exists), and `agent-cluster` drives multi-agent launch, supervision, and fan-in; neither persists model choices on its own. See [INSTALL.md](INSTALL.md) for the full install, update, and uninstall guide.
+
+### Pi Package Contents
+
+| Resource | Source | What you get |
+|----------|--------|--------------|
+| Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:python`) |
+| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery) and `deepseek-responses/deepseek-v4-flash` (1M context, thinking levels low/high/xhigh/max) |
+| Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
+| Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
+| Subagents | `pi/subagents/` | generated `cyberbrain.<role>` agents from `awesome-agent-select` profiles, e.g. `/run cyberbrain.code-reviewer` |
+| Dependency | npm `pi-subagents` | subagent delegation engine (chains, parallel fanout, async supervision), bundled via `pi/package.json` |
 
 ## Plugin Layout
 

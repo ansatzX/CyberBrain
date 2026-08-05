@@ -16,9 +16,20 @@ export function registerDeepSeekResponses(pi: Registrar, _env: Env = process.env
 				name: "deepseek-v4-flash-response",
 				reasoning: true,
 				input: ["text"],
-				contextWindow: 131072,
-				maxTokens: 8192,
-				cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+				contextWindow: 1_000_000,
+				maxTokens: 384_000,
+				cost: { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0 },
+				// DeepSeek 思考档位映射（Responses API reasoning.effort）：
+				// 官方有效档位仅 none/low/high/max；off 默认发 "none"。
+				// minimal/medium 置 null 禁用（API 对未知档位静默容忍但并非真实档位），
+				// xhigh 对 flash 无意义（坍缩为 high），刻意不提供。
+				thinkingLevelMap: {
+					minimal: null,
+					low: "low",
+					medium: null,
+					high: "high",
+					max: "max",
+				},
 			},
 		],
 	});

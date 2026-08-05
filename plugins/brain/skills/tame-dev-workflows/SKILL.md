@@ -7,6 +7,8 @@ description: "Use when installing, reinstalling, auditing, or preparing Brain-ma
 
 Install Brain-managed copies of Superpowers, Spec Kit, and OpenSpec under `.brain/vendor`.
 
+Superpowers is sourced from the exact installed official Codex marketplace plugin version, not from the older public GitHub release tag. Install or refresh Superpowers through Codex `/plugins` before running this skill.
+
 Resolve `<skill-dir>` to this skill folder. Scripts accept an optional project root as their first argument.
 
 ## Run
@@ -60,4 +62,4 @@ OpenSpec creates `openspec/` under the init target. This skill targets `.brain/v
 
 ## Report
 
-Report generated Spec Kit skills, generated OpenSpec skills/prompts, generated Codex agents, Superpowers ref, and whether root `.agents/skills` or `.codex/skills` exists.
+Report generated Spec Kit skills, generated OpenSpec skills/prompts, generated Codex agents, Superpowers Codex plugin version, and whether root `.agents/skills` or `.codex/skills` exists.

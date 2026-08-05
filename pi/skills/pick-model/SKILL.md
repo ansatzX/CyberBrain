@@ -133,6 +133,15 @@ use recon, or ask for clarification. Do not choose `off` for a reasoning model
 unless the user requests it or the task is mechanical and independently
 verifiable.
 
+**DeepSeek thinking levels.** For DeepSeek models (`deepseek/*` and
+`deepseek-responses/*`), prefer `high` or `max`; do not route real work to
+`low`. DeepSeek's server-side effort mapping already degrades `low`
+(`deepseek-v4-pro` maps a `low` request to `high` anyway), and `xhigh`
+collapses to `high` on `deepseek-v4-flash` while mapping to `max` on
+`deepseek-v4-pro`. `max` is exposed on both the direct `deepseek/*` route and
+`deepseek-responses/deepseek-v4-flash`; if a route clamps the requested level,
+report the clamp instead of claiming `max` was used.
+
 ## Cluster policy
 
 For a parallel cluster, do not assign every child high thinking.
