@@ -12,7 +12,10 @@
       "../plugins/brain/skills",
       "../plugins/tachikoma/skills",
       "../plugins/awesome-agent-select/skills"
-    ]
+    ],
+    "subagents": {
+      "agents": ["./subagents"]
+    }
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"

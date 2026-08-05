@@ -9,11 +9,11 @@ description: "Use when the task involves `exec_command` escalation, `prefix_rule
 
 This skill covers Codex platform patterns that are not domain-specific but are essential for correct agent behavior: `exec_command` escalation, `prefix_rule` selection, sandbox writable roots, and tool cache directories.
 
-For web-search judgment, source verification, current-information checks, or entity disambiguation, route to `brain:agentic-search`. This skill only covers Codex platform mechanics; it must not absorb search strategy or source-ranking policy.
+Apply it only when the active host exposes Codex `exec_command` semantics. Before relying on an operational detail, inspect the current Codex help, effective permission instructions, or local Codex source; they are authoritative over this skill. For web-search judgment, source verification, current-information checks, or entity disambiguation, route to `brain:agentic-search`. This skill only covers Codex platform mechanics; it must not absorb search strategy or source-ranking policy.
 
 ## `exec_command` `prefix_rule` Escalation
 
-When `exec_command` fails sandboxing and requires escalation (`sandbox_permissions="require_escalated"`), provide a `prefix_rule` that captures the reusable command pattern — **not** the full command with specific arguments. See [prefix_rule_mechanism.md](/Users/ansatz/data/code/Cyberbrain/prefix_rule_mechanism.md) for the full reference.
+When `exec_command` fails sandboxing and requires escalation (`sandbox_permissions="require_escalated"`), provide a `prefix_rule` that captures the reusable command pattern — **not** the full command with specific arguments.
 
 **Core rule: strip specific arguments, keep the tool prefix.**
 
@@ -55,9 +55,7 @@ prefix_rule: ["uv", "run", "pytest"]
 
 ## Sandbox Writable Roots
 
-See [codex_permissions_instructions.md](/Users/ansatz/data/code/Cyberbrain/codex_permissions_instructions.md) for the full reference.
-
-Codex sandbox uses `workspace_write` mode by default. Writes are only permitted to:
+In a `workspace_write` sandbox, writes are only permitted to:
 
 | Source | Path | Controllable? |
 |---|---|---|
@@ -76,7 +74,7 @@ Many tools write to cache or data directories outside cwd (e.g., `~/.cache/uv`, 
 ```toml
 # ~/.codex/config.toml
 [sandbox_workspace_write]
-writable_roots = ["/Users/ansatz/.cache/uv"]
+writable_roots = ["~/.cache/uv"]
 ```
 
 After this, writes to that directory succeed inside the sandbox without escalation. The per-project `CACHE_DIR=./.cache/...` workaround is no longer needed.

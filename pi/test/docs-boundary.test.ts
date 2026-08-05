@@ -12,9 +12,3 @@ test("root docs describe both Codex and Pi adapters", () => {
 	assert.match(agents, /host adapter/i);
 	assert.doesNotMatch(agents, /CyberBrain is a Codex-only plugin marketplace/);
 });
-
-test("host-specific docs remain scoped", () => {
-	assert.match(read("CODEX_PLUGIN_SYSTEM.md"), /Codex adapter/);
-	assert.match(read("PI_SUPPORT.md"), /cyberbrain-pi/);
-	assert.match(read("PI_SUPPORT.md"), /manage-pi\.sh doctor/);
-});

@@ -9,7 +9,7 @@ This repository is not a generic prompt dump or a Claude Code compatibility laye
 ## Host Boundaries
 
 - **Codex adapter**: `.agents/plugins`, `plugins/*/.codex-plugin`, Codex agent TOMLs/installers, and `~/.codex` examples.
-- **Pi adapter**: `pi/package.json`, `pi/extensions`, `pi/lib`, `pi/slashes`, `pi/skills`, `tools/manage-pi.sh`, and `~/.pi/agent` runtime examples.
+- **Pi adapter**: `pi/package.json`, `pi/extensions`, `pi/lib`, `pi/slashes`, `pi/skills`, `pi/subagents`, `tools/manage-pi.sh`, and `~/.pi/agent` runtime examples.
 - Shared skills remain single-source under `plugins/*/skills` and may be loaded by both hosts.
 - Do not make one host adapter emulate the other host's runtime APIs.
 
@@ -39,15 +39,13 @@ first, then edit.
 
 ## Codex Adapter Rules
 
-This repository now targets Codex only.
-
 Keep these boundaries intact:
 
-- publish only through `.agents/plugins/marketplace.json` and
+- publish Codex plugins only through `.agents/plugins/marketplace.json` and
   `plugins/*/.codex-plugin/plugin.json`
-- keep agent-role definitions in `plugins/awesome-agent-select/agents/*.toml`
-- use Codex-native tool names and workflows in skills and docs
-- use `~/.codex/...` paths for user-facing runtime/config examples
+- keep generated Codex role definitions in `plugins/awesome-agent-select/agents/*.toml`
+- use Codex-native tool names and workflows in Codex skills and docs
+- use `~/.codex/...` paths for Codex user-facing runtime/config examples
 
 Do not add back:
 
@@ -60,27 +58,38 @@ Do not add back:
 ## Agent Packaging Rules
 
 `awesome-agent-select` is the only published plugin here that exposes Codex
-agent roles.
+agent roles and packaged Pi subagents.
 
 Its contract is:
 
-- plugin install publishes skills and packaged resources
-- explicit installer registers agent roles into `~/.codex/agents`
-- installer ownership is tracked by a local manifest
-- plugin install alone does not make agent roles visible to Codex
+- `plugins/awesome-agent-select/agent-profiles/*.md` is the canonical,
+  host-neutral role text; filename supplies the role name, its first paragraph
+  supplies the description, and the remaining text supplies instructions
+- `node tools/generate-agent-adapters.mjs` deterministically renders the
+  canonical profiles into Codex TOMLs and Pi Markdown adapters
+- generated Codex TOMLs remain at `plugins/awesome-agent-select/agents/*.toml`;
+  the explicit installer registers them in `~/.codex/agents` and tracks ownership
+  with a local manifest
+- generated Pi adapters remain at `pi/subagents/awesome-agent-select/*.md` and
+  are exposed by `pi/package.json` through `pi.subagents.agents`
+- plugin installation alone does not make Codex agent roles visible to Codex;
+  the explicit installer remains required
 
-Canonical files:
+Canonical packaging files:
 
-- `plugins/awesome-agent-select/agents/*.toml`
+- `plugins/awesome-agent-select/agent-profiles/*.md`
+- `tools/generate-agent-adapters.mjs`
 - `plugins/awesome-agent-select/tools/manage-codex-agents.sh`
 - `tools/awesome-agent-select-codex-agents.sh`
+- `pi/package.json`
 - `README.md`
 
-When changing agent packaging, keep those files synchronized.
+When changing a role, edit its canonical text and regenerate; never hand-edit a
+rendered TOML or Pi adapter. Keep these files synchronized.
 
-Do not add `model` or `model_reasoning_effort` to agent TOMLs unless the
-maintainer explicitly wants pinned models. Default behavior should inherit the
-current Codex session's model, profile, and reasoning settings.
+Do not add `model` or `model_reasoning_effort` to generated agent definitions
+unless the maintainer explicitly wants pinned models. Default behavior should
+inherit the current Codex or Pi session's model, profile, and reasoning settings.
 
 Do not reintroduce plugin hooks for agent installation unless the maintainer
 explicitly asks for them. The supported path is the explicit installer.
@@ -89,8 +98,8 @@ explicitly asks for them. The supported path is the explicit installer.
 
 Published plugins should remain narrowly scoped:
 
-- `awesome-agent-select`: prompted subagents plus explicit Codex agent-role
-  installer
+- `awesome-agent-select`: host-neutral prompted-role source plus generated
+  Codex roles, packaged Pi subagents, and explicit Codex agent-role installer
 - `tachikoma`: Codex-hosted skills for coordinating external AI CLIs
 - `brain`: Codex-hosted audit and reasoning skills
 
@@ -101,14 +110,15 @@ Keep repo-root marketplace metadata aligned with plugin manifests:
 
 ## Documentation Rules
 
-Repository docs should describe the real Codex workflow, not historical or
-adjacent host behavior.
+Repository docs should describe the real host-native workflow, not historical
+or adjacent host behavior.
 
 When updating docs:
 
-- keep installation steps Codex-only
+- keep Codex and Pi installation paths distinct
 - keep plugin layout examples aligned with files that actually exist
-- describe explicit installer flow for `awesome-agent-select`
+- describe the explicit Codex installer and Pi package discovery flow for
+  `awesome-agent-select`
 - avoid documenting unsupported automation paths as if they are first-class
 
 If you remove a runtime path or packaging mechanism, remove its README and
@@ -118,10 +128,10 @@ design-doc references in the same change.
 
 - `README.md`: user-facing marketplace, installation, and validation guide
 - `AGENTS.md`: repository work discipline for Codex contributors
-- `CODEX_PLUGIN_SYSTEM.md`: Codex plugin/agent packaging mechanics and design
   constraints
 - `.agents/plugins/marketplace.json`: Codex marketplace registry
-- `plugins/awesome-agent-select/`: subagent plugin, installer, and agent TOMLs
+- `plugins/awesome-agent-select/`: canonical role text, generated Codex roles,
+  shared skills, and Codex installer
 - `plugins/tachikoma/skills/`: Codex skills for external AI CLIs
 - `plugins/brain/skills/`: Codex reasoning/audit skills
 - `tools/awesome-agent-select-codex-agents.sh`: repo-root installer wrapper
@@ -154,17 +164,21 @@ bash -n plugins/awesome-agent-select/tools/manage-codex-agents.sh
 For Codex-only boundary checks:
 
 ```bash
-rg -n "\.claude-plugin|CLAUDE_PLUGIN_ROOT|CLAUDE_PLUGIN_DATA|AskUserQuestion|~/.claude" README.md AGENTS.md CODEX_PLUGIN_SYSTEM.md plugins .agents -S
+rg -n "\.claude-plugin|CLAUDE_PLUGIN_ROOT|CLAUDE_PLUGIN_DATA|AskUserQuestion|~/.claude" README.md AGENTS.md plugins .agents -S
 ```
 
 For agent-definition changes:
 
-- verify `agents/*.toml` still contain `name`, `description`, and
+- run `node tools/generate-agent-adapters.mjs --check`
+- verify generated `agents/*.toml` still contain `name`, `description`, and
   `developer_instructions`
-- verify no agent TOML pins a model unless explicitly intended
+- verify the generated Pi adapters have `name`, `description`, and
+  `systemPromptMode: replace`
+- verify no generated definition pins a model unless explicitly intended
 
 If you changed the explicit installer or agent discovery flow, run an install
-or doctor check against a temporary `CODEX_HOME` before claiming success.
+or doctor check against a temporary `CODEX_HOME` and verify Pi agent discovery
+before claiming success.
 
 ## Change Discipline
 

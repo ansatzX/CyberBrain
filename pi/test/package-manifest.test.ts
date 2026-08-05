@@ -16,6 +16,7 @@ test("manifest defines the local cyberbrain-pi package", () => {
 	assert.equal(pkg.private, true);
 	assert.ok(pkg.keywords.includes("pi-package"));
 	assert.deepEqual(pkg.pi.extensions, ["./extensions/*.ts"]);
+	assert.deepEqual(pkg.pi.subagents.agents, ["./subagents"]);
 });
 
 test("pi-extension-dev is packaged with valid relative references", () => {
@@ -32,6 +33,26 @@ test("pi-extension-dev is packaged with valid relative references", () => {
 	]) {
 		assert.equal(existsSync(resolve(skillRoot, file)), true, file);
 	}
+});
+
+test("pick-model and agent-cluster are packaged Pi skills", () => {
+	const pickModelPath = resolve(piRoot, "skills/pick-model/SKILL.md");
+	assert.equal(existsSync(pickModelPath), true, "pick-model must be packaged");
+	const pickModel = readFileSync(pickModelPath, "utf8");
+	assert.match(pickModel, /^---\nname: pick-model\n/m);
+	assert.match(pickModel, /omitted `model`.*parent-session model/s);
+	assert.match(pickModel, /omitted `thinking`.*not.*reliable request/s);
+	assert.match(pickModel, /Server-side Responses search and launch-tool network access/);
+	assert.match(pickModel, /deepseek-responses\/deepseek-v4-flash/);
+	assert.match(pickModel, /## User evaluation registry/);
+
+	const clusterPath = resolve(piRoot, "skills/agent-cluster/SKILL.md");
+	assert.equal(existsSync(clusterPath), true, "agent-cluster must be packaged");
+	const cluster = readFileSync(clusterPath, "utf8");
+	assert.match(cluster, /^---\nname: agent-cluster\n/m);
+	assert.match(cluster, /`team-leader`/);
+	assert.match(cluster, /`pick-model`/);
+	assert.match(cluster, /should a cluster exist at all/);
 });
 
 test("manifest exposes every approved Cyberbrain skill root from one source", () => {

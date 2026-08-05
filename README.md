@@ -17,7 +17,7 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 
 | Plugin | Contents | Status |
 |--------|----------|--------|
-| `awesome-agent-select` | Prompted subagents for review, QA, API docs, performance, tooling, and TypeScript work | Published |
+| `awesome-agent-select` | Host-neutral prompted roles rendered for Codex and Pi: review, QA, API docs, performance, tooling, and TypeScript work | Published |
 | `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, and Kimi Code | Published |
 | `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
 
@@ -57,7 +57,7 @@ Install `awesome-agent-select` from `/plugins`, then explicitly install its Code
 bash tools/awesome-agent-select-codex-agents.sh install
 ```
 
-This copies `agents/*.toml` into `~/.codex/agents/` and writes a manifest so later `doctor` and `uninstall` operations touch only files owned by `awesome-agent-select`.
+This copies the generated `agents/*.toml` files into `~/.codex/agents/` and writes a manifest so later `doctor` and `uninstall` operations touch only files owned by `awesome-agent-select`.
 
 Check status:
 
@@ -79,8 +79,6 @@ To clean up agent symlinks from all plugins:
 bash tools/cleanup-agent-symlinks.sh
 ```
 
-Still-enabled plugins will re-create their symlinks on the next session start.
-
 ## Pi Installation
 
 Clone the repository and run the managed installer:
@@ -93,7 +91,7 @@ bash tools/manage-pi.sh install
 bash tools/manage-pi.sh doctor
 ```
 
-The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. See [PI_SUPPORT.md](PI_SUPPORT.md) for providers, slash overrides, updates, and uninstall instructions.
+The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. Its `pick-model` skill picks model and thinking level per delegated launch (parent-model inheritance unless an approved model policy exists), and `agent-cluster` drives multi-agent launch, supervision, and fan-in; neither persists model choices on its own. Inspect `tools/manage-pi.sh`, `tools/manage-pi.py`, and `pi/` for the current installer, provider, slash, update, and uninstall behavior.
 
 ## Plugin Layout
 
@@ -105,7 +103,8 @@ tools/
 plugins/
   awesome-agent-select/
     .codex-plugin/plugin.json
-    agents/                            # Codex agent TOML definitions
+    agent-profiles/                    # canonical host-neutral role text
+    agents/                            # generated Codex agent TOMLs
     skills/
     tools/
       manage-codex-agents.sh           # canonical installer used by explicit wrapper
@@ -116,6 +115,8 @@ plugins/
   brain/
     .codex-plugin/plugin.json
     skills/
+pi/
+  subagents/awesome-agent-select/      # generated Pi subagent Markdown adapters
 ```
 
 ## Plugin Details
@@ -136,42 +137,6 @@ Included skills:
 - `qwen`
 - `github-copilot-cli`
 - `kimi-code`
-
-#### `tachikoma::codex` and `llm_router`
-
-The `codex` skill supports the `llm_router` profile for routing Codex traffic through [ansatzX/llm_router](https://github.com/ansatzX/llm_router).
-
-Supported profile policy:
-
-| Profile | Model policy |
-|---------|--------------|
-| default | `gpt-5.4 high` or `gpt-5.5 high`; fallback to `gpt-5.3-codex` |
-| `llm_router` | `deepseek-v4-pro xhigh` only |
-| `aihubmix` | `gpt-5.4 high` or `gpt-5.5 high` |
-
-Configure `llm_router`:
-
-```bash
-git clone https://github.com/ansatzX/llm_router.git ~/soft/llm_router
-cd ~/soft/llm_router
-uv sync
-export DEEPSEEK_API_KEY="sk-..."
-mkdir -p ~/.codex
-cp llm_router.json ~/.codex/llm_router.json
-```
-
-Merge the `llm_router` provider/profile settings from `codex.config.example.toml` into `~/.codex/config.toml`, then start the router:
-
-```bash
-uv run llm_router serve
-```
-
-Use it through Codex:
-
-```bash
-codex -p llm_router
-codex exec -p llm_router -m deepseek-v4-pro --config model_reasoning_effort="xhigh" --skip-git-repo-check -
-```
 
 ### `brain`
 
@@ -212,17 +177,24 @@ In Codex, the supported installation path is an explicit installer that copies `
 
 | File | Format | Consumer |
 |------|--------|----------|
-| `agents/*.toml` | `name` + `description` + `developer_instructions` | Codex |
+| `agent-profiles/*.md` | description paragraph followed by role instructions; no frontmatter | Canonical source |
+| `agents/*.toml` | `name` + `description` + `developer_instructions` | Codex (generated) |
+| `pi/subagents/awesome-agent-select/*.md` | Pi subagent frontmatter plus role instructions | Pi (generated) |
 
-Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. `bash tools/awesome-agent-select-codex-agents.sh install` is the supported way to populate that directory.
+Edit only `agent-profiles/*.md`: the filename is the role name, the first paragraph is its description, and the remaining text is its instructions. Regenerate both host adapters with:
+
+```bash
+node tools/generate-agent-adapters.mjs
+node tools/generate-agent-adapters.mjs --check
+```
+
+Codex discovers agent roles from `~/.codex/agents/*.toml` during startup. `bash tools/awesome-agent-select-codex-agents.sh install` is the supported way to populate that directory. Pi discovers the packaged roles as `cyberbrain.<role-name>` after `/reload`; for example: `/run cyberbrain.code-reviewer "Review the current diff without edits"`.
 
 **Install**: Use `/plugins` in the Codex interactive CLI to install from the CyberBrain marketplace, then run `bash tools/awesome-agent-select-codex-agents.sh install`. Start a new Codex session after the install so the newly copied agent roles are discovered.
 
 **Verify**: Run `bash tools/awesome-agent-select-codex-agents.sh doctor`.
 
 **Uninstall**: Run `bash tools/awesome-agent-select-codex-agents.sh uninstall` to remove only managed files. If you previously used the legacy symlink-based flow, `bash tools/cleanup-agent-symlinks.sh` removes leftover symlinks. Plugin uninstall through `/plugins` still does not have an uninstall hook in Codex itself.
-
-For a detailed explanation of the Codex plugin system (install/uninstall flow, hook runtime, agent role discovery), see [CODEX_PLUGIN_SYSTEM.md](CODEX_PLUGIN_SYSTEM.md).
 
 ## Validation
 
@@ -232,9 +204,10 @@ Validate marketplace and plugin JSON:
 jq -e . .agents/plugins/marketplace.json plugins/*/.codex-plugin/plugin.json
 ```
 
-Check skill metadata coverage:
+Check skill metadata coverage and generated agent adapters:
 
 ```bash
 find plugins -path '*/skills/*/SKILL.md' -type f | wc -l
 find plugins -path '*/skills/*/agents/openai.yaml' -type f | wc -l
+node tools/generate-agent-adapters.mjs --check
 ```
