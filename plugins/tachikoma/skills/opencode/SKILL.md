@@ -1,68 +1,46 @@
 ---
 name: opencode
-description: Use when the user asks to run OpenCode CLI in non-interactive mode (opencode run) or references OpenCode for AI-assisted coding tasks.
+description: Use when the user asks to run OpenCode CLI non-interactively (`opencode run`) for analysis, review, or authorized workspace work.
 ---
 
-# OpenCode Skill Guide
+# OpenCode CLI
 
-Before running OpenCode, follow the shared logging and summary protocol in `../_shared/agent-cli.md`.
+Before invoking OpenCode, follow `../_shared/agent-cli.md`.
 
-## Running a Task
-1. Verify installation: `command -v opencode`
-2. Select the agent required for the task; default to `plan` for read-only analysis. For implementation/editing tasks, first use `superpowers:using-git-worktrees` to create a fresh git worktree, then run OpenCode there with `--agent build` when approved.
-3. **Always use `the current host's user-question or approval mechanism` before using the `build` agent for write operations.**
-4. Assemble the command with the appropriate options:
-   - `-m, --model <provider/model>` - Model to use
-   - `-c, --continue` - Continue the last session
-   - `-s, --session <id>` - Session ID to continue
-   - `--agent <agent>` - Agent to use (`build` for full access, `plan` for read-only)
-   - `-f, --file <files...>` - File(s) to attach
-5. Do not suppress stderr. Capture stdout and stderr into `full.md`, and require the prompt to write `summary.md`.
-6. Run the command, inspect the full log and summary, and summarize the outcome for the user.
+## Verify the installed interface
 
-### Quick Reference
-| Use case | Command pattern |
-| --- | --- |
-| Full access in fresh worktree only (write/edit/bash) | `opencode run --agent build "prompt"` |
-| Read-only analysis | `opencode run --agent plan "prompt"` |
-| Continue last session | `opencode run --continue "follow-up"` |
-| Continue specific session | `opencode run --session <id> "prompt"` |
-| Use specific model | `opencode run --model anthropic/claude-sonnet-4-20250514 "prompt"` |
-| Attach files | `opencode run -f file.py "prompt"` |
-| List models | `opencode models` |
-| List sessions | `opencode session list` |
-| List available agents | `opencode agent list` |
-
-### Agents
-| Agent | Permissions | Use Case |
-| --- | --- | --- |
-| `build` | Full access: write, edit, bash | Active development in a fresh worktree |
-| `plan` | Read-only: no write/edit, bash asks first | Code analysis, planning, exploration |
-
-### Example Commands
-
-```bash
-# Read-only analysis with plan agent
-opencode run --agent plan "Analyze the codebase architecture"
-
-# Full access with build agent in a fresh worktree only
-opencode run --agent build "Fix the bug in main.py"
-
-# Continue last session
-opencode run --continue "What else can you improve?"
-
-# Use specific model
-opencode run --model anthropic/claude-sonnet-4-20250514 "Refactor this code"
-
-# Capture stdout/stderr according to ../_shared/agent-cli.md
+```text
+opencode --version
+opencode run --help
+opencode agent list            # only when selecting an agent
 ```
 
-## Following Up
-- After every `opencode run` command, immediately use `the current host's user-question or approval mechanism` to confirm next steps, collect clarifications, or decide whether to resume with `--continue`.
-- When resuming, the session automatically uses the same model and agent from the original session.
-- Restate the chosen model and agent when proposing follow-up actions.
+`--agent` selects a locally configured agent; its name does not prove read-only or write permission behavior. Do not treat `plan` or `build` as built-in security modes unless the current local agent definition establishes that contract.
 
-## Error Handling
-- Stop and report failures whenever `opencode --version` or an `opencode` command exits non-zero; request direction before retrying.
-- Use `opencode debug` for troubleshooting if needed.
-- Always validate OpenCode's output for security vulnerabilities (XSS, injection) before using.
+## Model and permission selection
+
+Omit `--model`, `--variant`, and `--agent` by default. Preserve configured choices unless the user explicitly requests supported values.
+
+The current `opencode run` interface exposes `--auto` for automatic approval of permissions. It is dangerous and requires explicit approval. If the current installation provides no verified read-only agent or permission mode, say that non-interactive analysis cannot be guaranteed read-only.
+
+## Command patterns
+
+```bash
+# Non-interactive run; permission behavior must be established first
+opencode run "<prompt>"
+
+# Structured event output
+opencode run --format json "<prompt>"
+
+# Continue the latest session
+opencode run --continue "<follow-up prompt>"
+
+# User-authorized automatic permission approval
+opencode run --auto "<prompt>"
+```
+
+Use `--dir` only for an explicitly selected target directory. Use `--session <id>` only for the intended existing session.
+
+## Completion
+
+Inspect the final response, session target, and verification results. Do not infer safety or success from an agent name, a formatted output mode, or an exit code.

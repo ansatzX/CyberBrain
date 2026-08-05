@@ -1,107 +1,49 @@
-# Shared Agent CLI Protocol
+# External Agent CLI Protocol
 
-Use this protocol for every non-interactive coding-agent CLI run from Codex.
+Use this protocol before invoking any external coding-agent CLI from a Tachikoma skill.
 
-## Codex Tooling
+## 1. Discover the installed contract
 
-When these skills describe actions, use Codex-native tools directly.
+Before constructing a command, run these read-only checks:
 
-| Intent | Codex tool |
+```text
+<cli> --version
+<cli> --help
+<cli> <subcommand> --help       # when a subcommand will be used
+```
+
+Use only flags, permission modes, model options, and resume syntax shown by that installed version. A skill example is illustrative; current CLI help is authoritative.
+
+## 2. Preserve the user's model choice
+
+- Omit model, profile, reasoning, fallback, and provider flags by default. They inherit the CLI's current configuration or resumed session.
+- Add one only when the user explicitly selected it, or after asking one focused question when selection is necessary.
+- Validate a requested value against the CLI's current discovery/configuration mechanism before running it.
+- Do not encode provider-specific model names, profile-to-model bindings, or assumed reasoning levels in a skill.
+- Resume without changing model, profile, reasoning, provider, or permission settings unless the user explicitly asks to change them.
+
+## 3. Establish the execution boundary
+
+Classify the requested run before launch:
+
+| Requested result | Required boundary |
 | --- | --- |
-| Ask the user a question | `request_user_input` when that Codex tool is available and appropriate; otherwise ask directly in the assistant response. If an action needs execution approval, use `exec_command` with `sandbox_permissions="require_escalated"` and a `justification`. |
-| Run shell command | `exec_command`; use `write_stdin` for yielded interactive sessions. |
-| Read/search files | `exec_command` with `sed`, `rg --files`, `rg`; use MCP/document tools for binary files when available. |
-| Edit files | `apply_patch` for manual edits; approved formatters or bulk tools for mechanical rewrites. |
-| Track tasks | `update_plan`. |
-| Invoke skill | Skills load natively; read the relevant `SKILL.md` only when required by the host's skill rules. |
-| Spawn subagent | `spawn_agent`; then `wait_agent`; use `close_agent` when done. |
-| Continue spawned agent | `send_input`. |
+| Read-only analysis | Use a CLI mode verified by its current help to be read-only. If none exists, say so; do not label an ordinary agent run read-only. |
+| Workspace changes | The user must request or approve changes. Run in the explicitly selected target directory; use a fresh worktree only when it has been requested or approved. |
+| Automatic approvals, broad filesystem access, network access, or destructive actions | Explain the exact capability and obtain explicit approval before adding the relevant flag. A worktree isolates repository changes; it is not permission for broader access. |
 
-## Durable Output
+Never invent a host-specific question, approval, task, or tool API. Use the current host's native mechanism, or ask directly in the assistant response.
 
-Do not discard stderr with `2>/dev/null`. Capture stdout and stderr into a full-run Markdown log, and require the agent prompt to produce a separate compressed summary Markdown file.
+## 4. Prompt and output discipline
 
-Default artifact directory inside the current working directory:
+State the objective, target directory, allowed scope, prohibited actions, and required verification in the prompt. Request a concise final response containing:
 
-```text
-./.tachikoma/runs/<tool>-<YYYYMMDD-HHMMSS>/
-```
+- files inspected and changed;
+- commands and verification run;
+- remaining uncertainty or failures.
 
-Required artifacts:
+Do not require the external agent to create `full.md`, `summary.md`, logs, or any other artifact unless the user requested durable logs. Do not discard stderr. Process success is evidence only that the CLI exited; inspect its final report and the claimed artifacts before reporting success.
 
-```text
-full.md      # command, cwd, flags, prompt, stdout, stderr, exit code
-summary.md   # concise agent-written summary requested in the prompt
-```
+## 5. Resume and failure
 
-If the CLI can write files, instruct it in the prompt to write `summary.md` itself. If it cannot, create `summary.md` from captured output after the run.
-
-## Prompt Suffix
-
-Append this section to every agent prompt:
-
-```text
-## Required Summary
-
-At the end of the run, write a Markdown summary to:
-<SUMMARY_PATH>
-
-The summary must include:
-- Objective
-- Files inspected
-- Files changed
-- Commands run
-- Result
-- Verification performed
-- Open issues or follow-up
-```
-
-## Capture Pattern
-
-Use shell capture that preserves both streams. Do not hide stderr.
-
-```text
-<command> > <run_dir>/stdout.log 2> <run_dir>/stderr.log
-```
-
-Then assemble `full.md` with the command, prompt, stdout, stderr, and exit code. If a command must be streamed live, also tee both streams into files.
-
-## Write Permissions And Isolation
-
-For coding-agent CLIs, default to read-only or planning mode when the CLI supports it.
-
-When the user asks an external CLI agent to modify code or workspace state, first use `superpowers:using-git-worktrees` to create a fresh git worktree. Run the CLI from that worktree, then enable the CLI's write-capable sandbox or permission mode inside that isolated worktree.
-
-Do not grant write permissions to external CLI agents in the main working tree. The worktree is the safety boundary for write-capable external agents.
-
-For analysis-only tasks, keep read-only or planning modes.
-
-When a command coordinates multiple external CLI agents for a coding fix, create the collaboration worktree before launching the agents. Run read-only analysis and review commands from that worktree too, so every agent sees the same isolated filesystem state.
-
-Write-capable examples in individual skills are valid only after the fresh worktree exists and the command is running from that worktree.
-
-## Asynchronous Multi-Agent Runs
-
-When launching multiple CLI agents for the same collaboration phase, start all commands first and wait only after every command has been launched. Do not serialize by waiting for one CLI result before starting the next.
-
-Each background run still needs its own run directory with `full.md` and `summary.md`.
-
-## CLI Flags
-
-When exact options matter, inspect the current CLI help before constructing the final command:
-
-```text
-<tool> --help
-<tool> <subcommand> --help
-```
-
-Use web/network information only when the task requires current external details and network access is available or approved.
-
-## Completion
-
-After the CLI exits:
-
-1. Check the exit code.
-2. Inspect `summary.md` and relevant parts of `full.md`.
-3. Report the result to the user with links or paths to both artifacts.
-4. Do not claim the agent succeeded solely because the process exited successfully.
+Use the CLI's currently documented resume command. Resume only the intended session and restate the inherited execution boundary. If command discovery, authentication, permissions, or the run itself fails, report the exact failure and stop; do not retry with broader permissions or a different model without user direction.

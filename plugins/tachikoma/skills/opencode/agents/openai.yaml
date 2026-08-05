@@ -1,4 +1,4 @@
 interface:
   display_name: "OpenCode"
-  short_description: "Run OpenCode CLI workflows"
-  default_prompt: "Use $opencode to run OpenCode CLI for this code analysis, review, or generation task."
+  short_description: "Coordinate a current OpenCode CLI session"
+  default_prompt: "Use $opencode to run OpenCode only after checking the installed command help, preserving the user's configured model unless they explicitly choose another, and establishing the requested permission boundary."

@@ -1,4 +1,4 @@
 interface:
   display_name: "Kimi Code"
-  short_description: "Run Kimi Code agent workflows"
-  default_prompt: "Use $kimi-code to run Kimi Code for this analysis, review, or generation task."
+  short_description: "Coordinate a current Kimi Code session"
+  default_prompt: "Use $kimi-code to run Kimi Code only after checking the installed command help, preserving the user's configured model unless they explicitly choose another, and establishing the requested permission boundary."

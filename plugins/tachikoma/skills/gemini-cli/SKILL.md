@@ -1,65 +1,42 @@
 ---
 name: gemini-cli
-description: Use when tasks benefit from Gemini CLI for code generation, review, analysis, web research, a second AI perspective, codebase architecture analysis, parallel code generation, or when the user explicitly requests Gemini operations.
+description: Use when the user explicitly requests Gemini CLI, or wants Gemini's separate model perspective for code analysis, review, research, or implementation.
 ---
 
-# Gemini CLI Skill Guide
+# Gemini CLI
 
-Before running Gemini, follow the shared logging and summary protocol in `../_shared/agent-cli.md`.
+Before invoking Gemini, follow `../_shared/agent-cli.md`.
 
-## When to Use Gemini
+## Verify the installed interface
 
-| Use Case | Why Gemini |
-| --- | --- |
-| Current web information | `google_web_search` - real-time Google Search |
-| Codebase architecture analysis | `codebase_investigator` - deep analysis tool |
-| Second opinion / code review | Different AI perspective catches different bugs |
-| Parallel code generation | Offload tasks while continuing other work |
-
-**When NOT to use**: Simple quick tasks (overhead not worth it), interactive refinement, context already understood.
-
-## Running a Task
-
-1. Verify installation: `command -v gemini`
-2. Select the mode required for the task. Default to read-only. For implementation/editing tasks, first use `superpowers:using-git-worktrees` to create a fresh git worktree, then run Gemini there with write-capable flags such as `--yolo` when approved.
-3. **Always use `the current host's user-question or approval mechanism` before using `--yolo` or `-s` flags.** These modes allow file writes or sandboxed execution - get explicit user approval first.
-4. Assemble the command with appropriate options:
-   - `-m, --model <MODEL>` - Model selection
-   - `-y, --yolo` - Auto-approve all tool calls (enables writes)
-   - `-s, --sandbox` - Run in Docker isolation
-   - `-o, --output-format <text|json>` - Output format
-5. Do not suppress stderr. Capture stdout and stderr into `full.md`, and require the prompt to write `summary.md`. Use `-o json` only when structured output is needed; preserve the raw JSON in the full log.
-
-### Critical Note
-YOLO mode does NOT prevent planning prompts. Use forceful language: "Apply now", "Start immediately", "Do this without asking for confirmation".
-
-## Quick Reference
-
-| Use case | Mode | Command pattern |
-| --- | --- | --- |
-| Read-only analysis | read-only | `gemini "..." -o json` |
-| Apply edits in fresh worktree only | write | `gemini "..." --yolo -o json` |
-| Sandboxed write in fresh worktree only | sandbox | `gemini "..." --yolo --sandbox -o json` |
-
-### Example Commands
-
-```bash
-# Read-only
-gemini "Review src/ for bugs" -o json
-
-# Write mode in a fresh worktree only
-gemini "Fix bug in file.py. Apply now." --yolo -o json
-
-# Capture stdout/stderr according to ../_shared/agent-cli.md
+```text
+gemini --version
+gemini --help
 ```
 
-## Following Up
+Gemini positional text starts an interactive session. Use `-p` / `--prompt` for a non-interactive run. Do not assume a particular built-in search or codebase-investigation tool exists; inspect the installed capability before promising it.
 
-- Resume: `echo "follow-up" | gemini -r latest -o json`
-- List sessions: `gemini --list-sessions`
+## Model and permission selection
 
-## Error Handling
+Omit `--model` by default. Preserve the configured model unless the user explicitly requests another supported model.
 
-- **Rate limit**: CLI auto-retries with backoff. Use `-m gemini-2.5-flash` for lower priority tasks.
-- **Command failure**: Check with `gemini --version`, use `--debug` for details.
-- **Always validate** Gemini's output for security vulnerabilities (XSS, injection) before using.
+The installed CLI documents `--approval-mode plan` as read-only. Verify that option before using it. `auto_edit` approves edits, and `yolo` approves all tool actions; each requires the boundary and approval specified in the shared protocol. `--sandbox` is an isolation setting, not evidence that the task is read-only.
+
+## Command patterns
+
+```bash
+# Non-interactive, read-only analysis when the installed CLI supports plan mode
+gemini --approval-mode plan -p "<prompt>"
+
+# User-authorized editing with automatic edit approval
+gemini --approval-mode auto_edit -p "<prompt>"
+
+# Resume the latest Gemini session
+gemini --resume latest -p "<follow-up prompt>"
+```
+
+Use `--worktree` only when the user requests or approves creation of a new worktree. Do not add `--yolo` merely to avoid prompts.
+
+## Completion
+
+Inspect the final response and requested verification. Treat web-search output as leads that require source inspection, not as verified evidence.

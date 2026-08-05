@@ -1,4 +1,4 @@
 interface:
   display_name: "Gemini CLI"
-  short_description: "Run Gemini CLI agent workflows"
-  default_prompt: "Use $gemini-cli to run Gemini CLI for this review, analysis, web research, or generation task."
+  short_description: "Coordinate a current Gemini CLI session"
+  default_prompt: "Use $gemini-cli to run Gemini CLI only after checking the installed command help, preserving the user's configured model unless they explicitly choose another, and establishing the requested permission boundary."

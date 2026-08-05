@@ -1,4 +1,4 @@
 interface:
   display_name: "GitHub Copilot CLI"
-  short_description: "Run GitHub Copilot CLI workflows"
-  default_prompt: "Use $github-copilot-cli to run GitHub Copilot CLI for this code analysis or review task."
+  short_description: "Coordinate a current GitHub Copilot CLI session"
+  default_prompt: "Use $github-copilot-cli to run Copilot CLI only after checking the installed command help and obtaining approval for its documented non-interactive tool-permission boundary."

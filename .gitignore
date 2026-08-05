@@ -4,3 +4,4 @@ docs/
 .local_read_mcp/
 .state-machine/
 .scripts/
+.pi-subagents/

@@ -1,7 +1,7 @@
 {
   "name": "tachikoma",
-  "version": "0.0.3",
-  "description": "Skills for interacting with other Agent tools - Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI",
+  "version": "0.0.4",
+  "description": "Codex-hosted skills for coordinating Codex, Gemini CLI, GitHub Copilot CLI, Kimi Code, OpenCode, and Qwen Code",
   "author": {
     "name": "ansatz"
   },
@@ -16,7 +16,7 @@
   "interface": {
     "displayName": "tachikoma",
     "shortDescription": "Skills for coordinating AI CLI tools",
-    "longDescription": "Skills for working with Codex, Gemini CLI, OpenCode, Qwen, Cline, Aider, GitHub Copilot CLI, Kiro CLI, and Kimi CLI.",
+    "longDescription": "Codex-hosted skills for coordinating currently installed Codex, Gemini CLI, GitHub Copilot CLI, Kimi Code, OpenCode, and Qwen Code CLIs.",
     "developerName": "ansatz",
     "category": "Developer Tools",
     "capabilities": [
