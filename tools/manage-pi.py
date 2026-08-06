@@ -278,14 +278,12 @@ def doctor(args: argparse.Namespace) -> int:
     for variable in ("AIHUBMIX_API_KEY", "DEEPSEEK_API_KEY"):
         if not os.environ.get(variable):
             issues.append(f"environment variable is not set: {variable}")
-    if not (repo_root / "pi/node_modules/pi-subagents/index.ts").is_file():
-        issues.append("pi-subagents dependency missing: run npm --prefix pi install --legacy-peer-deps")
     tests = sorted(str(path) for path in (repo_root / "pi/test").glob("*.test.ts"))
-    commands = [["npx", "--prefix", str(repo_root / "pi"), "tsx", "--test", *tests]] if tests else []
+    commands = [["node", "--test", *tests]] if tests else []
     for path in sorted((repo_root / "pi").glob("extensions/*.ts")):
-        commands.append(["npx", "--prefix", str(repo_root / "pi"), "tsx", "--input-type=module", "-e", f"import '{path.resolve()}'"])
+        commands.append(["node", "--input-type=module", "-e", f"import '{path.resolve()}'"])
     for path in sorted((repo_root / "pi").glob("lib/**/*.ts")):
-        commands.append(["npx", "--prefix", str(repo_root / "pi"), "tsx", "--input-type=module", "-e", f"import '{path.resolve()}'"])
+        commands.append(["node", "--input-type=module", "-e", f"import '{path.resolve()}'"])
     for command in commands:
         result = subprocess.run(command)
         if result.returncode != 0:

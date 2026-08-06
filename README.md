@@ -81,13 +81,13 @@ bash tools/cleanup-agent-symlinks.sh
 
 ## Pi Installation
 
-Clone the repository, install package dependencies (including `pi-subagents`), then run the managed installer:
+Clone the repository, install the `pi-subagents` Pi package, then run the managed installer:
 
 ```bash
 mkdir -p ~/soft
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
 cd ~/soft/CyberBrain
-npm --prefix pi install --legacy-peer-deps
+pi install npm:pi-subagents@0.40.0
 bash tools/manage-pi.sh install
 bash tools/manage-pi.sh doctor
 ```
@@ -103,7 +103,7 @@ The Pi adapter does not manage credentials, sessions, goals, model preferences, 
 | Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
 | Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
 | Subagents | `pi/subagents/` | generated `cyberbrain.<role>` agents from `awesome-agent-select` profiles, e.g. `/run cyberbrain.code-reviewer` |
-| Dependency | npm `pi-subagents` | subagent delegation engine (chains, parallel fanout, async supervision), bundled via `pi/package.json` |
+| Dependency | npm `pi-subagents` | subagent delegation engine (chains, parallel fanout, async supervision), installed separately as a Pi package (`pi install npm:pi-subagents@0.40.0`) |
 
 ## Plugin Layout
 

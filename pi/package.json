@@ -6,34 +6,18 @@
   "description": "Cyberbrain personal configuration adapter for Pi",
   "keywords": ["pi-package", "coding-agent", "personal-config"],
   "pi": {
-    "extensions": [
-      "./extensions/*.ts",
-      "node_modules/pi-subagents/index.ts"
-    ],
+    "extensions": ["./extensions/*.ts"],
     "skills": [
       "./skills",
       "../plugins/brain/skills",
       "../plugins/tachikoma/skills",
-      "../plugins/awesome-agent-select/skills",
-      "node_modules/pi-subagents/skills"
-    ],
-    "prompts": [
-      "node_modules/pi-subagents/prompts"
+      "../plugins/awesome-agent-select/skills"
     ],
     "subagents": {
       "agents": ["./subagents"]
     }
   },
-  "dependencies": {
-    "pi-subagents": "^0.40.0"
-  },
-  "bundledDependencies": [
-    "pi-subagents"
-  ],
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
-  },
-  "devDependencies": {
-    "tsx": "^4.23.7"
   }
 }

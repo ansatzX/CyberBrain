@@ -5,12 +5,13 @@ Pi host adapter for the Cyberbrain personal agent configuration repository.
 ## Development
 
 ```bash
-npm --prefix pi install --legacy-peer-deps
-npx --prefix pi tsx --test pi/test/*.test.ts
+node --test pi/test/*.test.ts
 for file in pi/extensions/*.ts pi/lib/*.ts pi/lib/third-party/*.ts; do
-  npx --prefix pi tsx --input-type=module -e "import '${file}'"
+  node --input-type=module -e "import '${file}'"
 done
 ```
+
+TypeScript runs via Node's built-in type stripping (Node 22.6+); there are no npm dependencies to install.
 
 ## Local install
 

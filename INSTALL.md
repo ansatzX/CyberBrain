@@ -8,10 +8,11 @@
 
 | 依赖 | 作用 | 安装方式 |
 |---|---|---|
-| `pi-subagents` (npm, ^0.40.0) | 子代理委派扩展（chains / parallel / TUI clarification） | 声明在 `pi/package.json` 的 `dependencies`，由下方第 2 步自动安装 |
-| `tsx` (devDependency) | 跑 TypeScript 测试和 doctor 语法检查 | 同上 |
+| `pi-subagents` (npm, 0.40.0) | 子代理委派扩展（chains / parallel / TUI clarification） | 作为独立 Pi 包安装：`pi install npm:pi-subagents@0.40.0`（下方第 2 步） |
 | `AIHUBMIX_API_KEY` | AIHubMix provider | 环境变量，需用户自行提供 |
 | `DEEPSEEK_API_KEY` | DeepSeek Responses provider | 环境变量，需用户自行提供 |
+
+TypeScript 测试与 doctor 语法检查使用 Node 内置的 type stripping（Node 22.6+），无需 npm 依赖。
 
 ## 前置条件
 
@@ -27,9 +28,8 @@
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
 cd ~/soft/CyberBrain
 
-# 2. 安装 pi 包依赖（pi-subagents + tsx）
-#    必须加 --legacy-peer-deps，避免把 peer 的 pi 运行时重复安装进 node_modules
-npm --prefix pi install --legacy-peer-deps
+# 2. 安装 pi-subagents 子代理扩展（全局 Pi 包）
+pi install npm:pi-subagents@0.40.0
 
 # 3. 注册本地包到 Pi（会写入 ~/.pi/agent/settings.json，迁移旧文件）
 bash tools/manage-pi.sh install
@@ -38,7 +38,7 @@ bash tools/manage-pi.sh install
 bash tools/manage-pi.sh doctor
 ```
 
-`doctor` 全绿（`Doctor OK`）即安装成功。它检查：包注册、旧文件冲突、`pi-subagents` 依赖是否存在、必需环境变量、全部测试。
+`doctor` 全绿（`Doctor OK`）即安装成功。它检查：包注册、旧文件冲突、必需环境变量、全部测试。
 
 ## 安装后生效内容
 
@@ -46,7 +46,7 @@ bash tools/manage-pi.sh doctor
 
 - **扩展命令**：`/ansatz:goal`（长任务目标）、`/ansatz:diff`、`/ansatz:status`、slash 模式框架（`/ansatz:review`、`/ansatz:python`）
 - **providers**：`aihubmix/*`（实时模型发现）、`deepseek-responses/deepseek-v4-flash`（1M 上下文，思考档位 low/high/xhigh/max）
-- **pi-subagents**：子代理委派引擎（chains / parallel fanout / async supervision），资源经 `pi/node_modules/pi-subagents/` 加载
+- **pi-subagents**：子代理委派引擎（chains / parallel fanout / async supervision），作为全局 Pi 包从 `~/.pi/agent/npm` 加载
 - **集群技能**：`agent-cluster`（多代理启动/监督/fan-in）+ `pick-model`（按次委派的模型与思考档位选择）
 - **子代理角色**：`pi/subagents/awesome-agent-select/` 生成的 9 个 `cyberbrain.<role>` 代理（如 `/run cyberbrain.code-reviewer`）
 - **共享 skills**：`plugins/brain`、`plugins/tachikoma`、`plugins/awesome-agent-select` 下的所有 skill
@@ -65,7 +65,6 @@ export DEEPSEEK_API_KEY="sk-..."
 ```bash
 cd ~/soft/CyberBrain
 git pull
-npm --prefix pi install --legacy-peer-deps   # 依赖可能变化
 bash tools/manage-pi.sh update
 bash tools/manage-pi.sh doctor
 ```
@@ -81,6 +80,6 @@ bash tools/manage-pi.sh uninstall
 
 ## 常见问题
 
-- **doctor 报 `pi-subagents dependency missing`**：漏了第 2 步，执行 `npm --prefix pi install --legacy-peer-deps` 后重跑 doctor。
+- **扩展加载报 `Tool "subagent" conflicts` 之类的冲突**：`pi-subagents` 被装了两份（全局 Pi 包 + 仓库 `pi/node_modules` 里的旧 bundle）。删掉仓库内副本：`rm -rf pi/node_modules pi/package-lock.json` 后重开会话。
 - **改动不生效**：扩展在会话启动时加载，必须**新开 pi 会话**。
 - **doctor 报环境变量缺失**：provider 不会注册，但不影响其他功能；按需 export 即可。
