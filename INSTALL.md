@@ -17,7 +17,7 @@ TypeScript 测试与 doctor 语法检查使用 Node 内置的 type stripping（N
 ## 前置条件
 
 - `pi` CLI 已安装且在 PATH 中（`pi --version` 可见）
-- Node.js 20+，npm 10+
+- Node.js 22.6+（doctor 与测试用内置 type stripping 跑 TS：22.6 起支持，23.6+ 默认开启，推荐 24）
 - Python 3（`tools/manage-pi.sh` 安装器需要）
 - macOS 或 Linux（Windows 无自动迁移，需手动）
 
