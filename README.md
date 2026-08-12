@@ -1,9 +1,9 @@
 # CyberBrain
 
 <div align="center">
-  <img src="assset/GIS.jpg" alt="Ghost in the Shell" width="400"/>
+  <img src="assets/GIS.jpg" alt="Ghost in the Shell" width="400"/>
   <br/>
-  <img src="assset/CyberBrain.png" alt="CyberBrain" width="400"/>
+  <img src="assets/CyberBrain.png" alt="CyberBrain" width="400"/>
 </div>
 
 CyberBrain is a personal agent configuration repository with first-class host adapters for OpenAI Codex and Pi. Shared skills remain single-source; each host keeps its native package, extension, and installer mechanisms.
@@ -18,14 +18,12 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 | Plugin | Contents | Status |
 |--------|----------|--------|
 | `awesome-agent-select` | Host-neutral prompted roles rendered for Codex and Pi: review, QA, API docs, performance, tooling, and TypeScript work | Published |
-| `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, and Kimi Code | Published |
+| `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code, and Pi | Published |
 | `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
 
 ## Requirements
 
-- Codex CLI 0.79.0 or newer, for `.codex-plugin` marketplace use
-- `jq` 1.8.1 or newer for local validation
-- Optional CLI tools used by `tachikoma`: Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code
+- Optional CLI tools used by `tachikoma`: Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code, Pi
 - Keep all CLI tools used by `tachikoma` updated to their latest available release before relying on the corresponding skill.
 
 ## Codex Installation
@@ -99,7 +97,7 @@ The Pi adapter does not manage credentials, sessions, goals, model preferences, 
 | Resource | Source | What you get |
 |----------|--------|--------------|
 | Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:python`) |
-| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery) and `deepseek-responses/deepseek-v4-flash` (1M context, thinking levels low/high/xhigh/max) |
+| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery) and `deepseek-responses/deepseek-v4-flash` / `deepseek-v4-pro` (1M context; flash exposes low/high/max, pro exposes high/max) |
 | Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
 | Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
 | Subagents | `pi/subagents/` | generated `cyberbrain.<role>` agents from `awesome-agent-select` profiles, e.g. `/run cyberbrain.code-reviewer` |
@@ -123,7 +121,6 @@ plugins/
   tachikoma/
     .codex-plugin/plugin.json
     skills/
-    tools/
   brain/
     .codex-plugin/plugin.json
     skills/
@@ -136,7 +133,7 @@ pi/
 ### `tachikoma`
 
 <div align="center">
-  <img src="assset/Tachikoma.png" alt="tachikoma" width="300"/>
+  <img src="assets/Tachikoma.png" alt="tachikoma" width="300"/>
 </div>
 
 `tachikoma` provides skills for running and coordinating external AI CLI tools from Codex.
@@ -149,6 +146,7 @@ Included skills:
 - `qwen`
 - `github-copilot-cli`
 - `kimi-code`
+- `pi`
 
 ### `brain`
 
@@ -159,9 +157,11 @@ Included skills:
 - `using-ansatz-brain`
 - `state-machine`
 - `agentic-search`
+- `codex-compatible`
 - `think-before-you-calculate`
 - `epistemic-systems-audit`
 - `whole-object-responsibility`
+- `tame-dev-workflows`
 
 State-machine TODO:
 
