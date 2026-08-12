@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tame Dev Workflows"
+  short_description: "Install and tame vendored workflow arsenals"
+  default_prompt: "Use $tame-dev-workflows to install, reinstall, audit, or prepare Brain-managed Superpowers, Spec Kit, and OpenSpec workflow arsenals under a project-local .brain/vendor directory so Brain can inspect and route them without exposing their raw Codex skills/prompts at the project root."

@@ -1,7 +1,7 @@
 {
   "name": "brain",
-  "version": "0.0.1",
-  "description": "Ansatz Brain skills for epistemic audits, calculation boundaries, and whole-object responsibility",
+  "version": "0.0.2",
+  "description": "Ansatz Brain skills for epistemic audits, calculation boundaries, whole-object responsibility, project state tracking, search-evidence routing, and vendored dev-workflow management",
   "author": {
     "name": "ansatz"
   },
@@ -16,7 +16,7 @@
   "interface": {
     "displayName": "Brain",
     "shortDescription": "Epistemic and responsibility audit skills",
-    "longDescription": "Ansatz Brain skills for auditing scientific claims, calculation boundaries, workflows, automation, and whole-object responsibility.",
+    "longDescription": "Ansatz Brain skills for auditing scientific claims, calculation boundaries, workflows, automation, whole-object responsibility, project state tracking, search-evidence routing, and vendored dev-workflow management.",
     "developerName": "ansatz",
     "category": "Productivity",
     "capabilities": [
