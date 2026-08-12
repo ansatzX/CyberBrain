@@ -39,7 +39,7 @@ The current configured provider/model families include these examples:
 | Family | Enabled examples | Pi metadata observed locally | Safe routing interpretation |
 |---|---|---|---|
 | OpenAI Codex / GPT | `openai-codex/gpt-5.6-terra`, `gpt-5.6-sol`, `gpt-5.6-luna`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.5` | reasoning supported; current session is `gpt-5.6-terra` at `high`; all listed except `gpt-5.3-codex-spark` accept images | Default inherited coding/workflow choice unless an approved policy selects another model. |
-| DeepSeek | `deepseek/deepseek-v4-flash`, `deepseek/deepseek-v4-pro`, `deepseek-responses/deepseek-v4-flash` | reasoning supported; the direct entries expose large text contexts and no image input | Candidate textual-recon or long-context lanes only after the user evaluates quality, latency, and cost locally. |
+| DeepSeek | `deepseek/deepseek-v4-flash`, `deepseek/deepseek-v4-pro`, `deepseek-responses/deepseek-v4-flash`, `deepseek-responses/deepseek-v4-pro` | reasoning supported; the direct entries expose large text contexts and no image input | Candidate textual-recon or long-context lanes only after the user evaluates quality, latency, and cost locally. |
 | Kimi Coding | `kimi-coding/k3`, `k3-256k`, `kimi-for-coding`, `kimi-for-coding-highspeed` | reasoning and image input supported; `k3` exposes the largest configured context/output limits in this family | Candidate codebase-reading or coding lanes only after the user evaluates them locally. |
 | AIHubMix gateway | many `aihubmix/gpt-*`, `aihubmix/deepseek-*`, `aihubmix/kimi-*`, and other aliases | gateway metadata and availability are provider-specific | Treat each `aihubmix/<model>` as a distinct gateway endpoint, not as equivalent to the direct provider's similarly named model. |
 
@@ -59,14 +59,14 @@ Current Cyberbrain behavior is:
 | Route | Search status | Evidence and routing rule |
 |---|---|---|
 | `openai-codex/*` | Server-side Responses search is available through the ChatGPT/Codex Responses route. | Treat this as a provider-side capability, not a local child tool. Use it for current-information work when the task calls for search and retain source/evidence boundaries. |
-| `deepseek-responses/deepseek-v4-flash` | Server-side Responses search is enabled by default. | `pi/extensions/third-party-all-in-one.ts` loads `installDeepSeekWebSearch`, which injects `{ type: "web_search" }` into matching Responses payloads. It is disabled only by `CYBERBRAIN_DEEPSEEK_WEB_SEARCH=0`. Prefer this route when an approved DeepSeek model needs current information. |
+| `deepseek-responses/*` | Server-side Responses search is enabled by default. | `pi/extensions/deepseek-responses.ts` loads `installDeepSeekWebSearch`, which injects `{ type: "web_search" }` into matching Responses payloads. It is disabled only by `CYBERBRAIN_DEEPSEEK_WEB_SEARCH=0`. Prefer this route when an approved DeepSeek model needs current information. |
 | `deepseek/*` direct and `kimi-coding/*` | No Cyberbrain server-search injection is established here. | Do not assume provider-side search. Use a separately supplied launch tool or verify a provider-specific integration first. |
 | `aihubmix/*` | Model- and gateway-specific. | A `search` name is not sufficient evidence. Verify that exact gateway endpoint and its returned source behavior before routing web-dependent work to it. |
 
 For a child to retain Cyberbrain's DeepSeek Responses integration, leave ambient
 extensions enabled. The generated `cyberbrain.*` agents intentionally omit an
 `extensions` allowlist, so normal Pi package discovery loads
-`third-party-all-in-one`. An explicit child `extensions` allowlist causes
+`deepseek-responses` (and `aihubmix` when its API key is present). An explicit child `extensions` allowlist causes
 pi-subagents to launch with `--no-extensions`; include the required provider
 extension deliberately if such an allowlist is added.
 
@@ -138,8 +138,9 @@ verifiable.
 `low`. DeepSeek's server-side effort mapping already degrades `low`
 (`deepseek-v4-pro` maps a `low` request to `high` anyway), and `xhigh`
 collapses to `high` on `deepseek-v4-flash` while mapping to `max` on
-`deepseek-v4-pro`. `max` is exposed on both the direct `deepseek/*` route and
-`deepseek-responses/deepseek-v4-flash`; if a route clamps the requested level,
+`deepseek-v4-pro`. `max` is exposed on the direct `deepseek/*` route and on both
+`deepseek-responses/deepseek-v4-flash` and `deepseek-responses/deepseek-v4-pro`;
+if a route clamps the requested level,
 report the clamp instead of claiming `max` was used.
 
 ## Cluster policy

@@ -45,7 +45,7 @@ bash tools/manage-pi.sh doctor
 新开 pi 会话后可用：
 
 - **扩展命令**：`/ansatz:goal`（长任务目标）、`/ansatz:diff`、`/ansatz:status`、slash 模式框架（`/ansatz:review`、`/ansatz:python`）
-- **providers**：`aihubmix/*`（实时模型发现）、`deepseek-responses/deepseek-v4-flash`（1M 上下文，思考档位 low/high/xhigh/max）
+- **providers**：`aihubmix/*`（实时模型发现）、`deepseek-responses/deepseek-v4-flash` / `deepseek-v4-pro`（1M 上下文；flash 思考档位 low/high/max，pro 思考档位 high/max）
 - **pi-subagents**：子代理委派引擎（chains / parallel fanout / async supervision），作为全局 Pi 包从 `~/.pi/agent/npm` 加载
 - **集群技能**：`agent-cluster`（多代理启动/监督/fan-in）+ `pick-model`（按次委派的模型与思考档位选择）
 - **子代理角色**：`pi/subagents/awesome-agent-select/` 生成的 9 个 `cyberbrain.<role>` 代理（如 `/run cyberbrain.code-reviewer`）

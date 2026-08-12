@@ -105,7 +105,7 @@ pi.registerCommand("deploy", {
 - **环境事实（实测）**：① `extensions/` 下**所有 .ts 都被当扩展加载**——辅助模块必须放 `~/.pi/agent/lib/`；② 同一扩展被双加载（自动 + `-e`）时命令名变 `:1/:2` 导致原命令失效——测试用 `-ne -e`；③ print 模式每次 session 文件不同（threadId 漂移）——测试用 `--session <固定路径>`；④ `registerTool` 的 `parameters` 必须是合法 JSON Schema（`{ type: "object", properties: {} }`，不能是空 `{}`）
 
 ## 完整示例
-[examples/namespaced-command.ts](examples/namespaced-command.ts) 是最小可复制样板。完整实战参考：`Cyberbrain/pi/extensions/slash-framework.ts`、`goal.ts` 与 `codex-slash.ts`。
+[examples/namespaced-command.ts](examples/namespaced-command.ts) 是最小可复制样板。完整实战参考：`Cyberbrain/pi/extensions/slash-framework.ts`、`goal.ts` 与 `utility-commands.ts`。
 
 ## 参考文档
 

@@ -34,11 +34,9 @@ test("pi-extension-dev is packaged with valid relative references", () => {
 	assert.equal(existsSync(skillRoot), true, "pi-extension-dev must be packaged");
 	const skill = readFileSync(resolve(skillRoot, "SKILL.md"), "utf8");
 	assert.match(skill, /^---\nname: pi-extension-dev/m);
+	// docs/ 是维护者本地参考文档，不出库（.gitignore 的 docs/ 规则）；
+	// 只断言随包分发、新克隆上真实存在的引用。
 	for (const file of [
-		"docs/api-reference.md",
-		"docs/events.md",
-		"docs/pitfalls.md",
-		"docs/verification.md",
 		"examples/namespaced-command.ts",
 	]) {
 		assert.equal(existsSync(resolve(skillRoot, file)), true, file);
@@ -54,6 +52,7 @@ test("pick-model and agent-cluster are packaged Pi skills", () => {
 	assert.match(pickModel, /omitted `thinking`.*not.*reliable request/s);
 	assert.match(pickModel, /Server-side Responses search and launch-tool network access/);
 	assert.match(pickModel, /deepseek-responses\/deepseek-v4-flash/);
+	assert.match(pickModel, /deepseek-responses\/deepseek-v4-pro/);
 	assert.match(pickModel, /## User evaluation registry/);
 	assert.match(pickModel, /DeepSeek thinking levels/);
 	assert.match(pickModel, /prefer `high` or `max`/);

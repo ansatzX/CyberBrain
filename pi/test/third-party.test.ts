@@ -19,6 +19,7 @@ import {
 } from "../lib/third-party/aihubmix.ts";
 import { availableModel, detailedModel } from "./fixtures.ts";
 import { installDeepSeekWebSearch, registerDeepSeekResponses } from "../lib/third-party/deepseek-responses.ts";
+import deepSeekResponsesExtension from "../extensions/deepseek-responses.ts";
 
 const normalizeOptions = {
   priceMultiplier: 1,
@@ -672,6 +673,33 @@ test("registerDeepSeekResponses registers the Responses provider", () => {
     high: "high",
     max: "max",
   });
+  // deepseek-v4-pro：官方有效档位仅 none/low/high/max；low 请求服务端映射为 high（非真实独立档位）故置 null；
+  // xhigh 服务端映射为 max，max 已直接暴露，刻意不提供。
+  assert.equal(models[1].id, "deepseek-v4-pro");
+  assert.equal(models[1].contextWindow, 1_000_000);
+  assert.equal(models[1].maxTokens, 384_000);
+  assert.deepEqual(models[1].cost, { input: 0.435, output: 0.87, cacheRead: 0.003625, cacheWrite: 0 });
+  assert.deepEqual(models[1].thinkingLevelMap, {
+    minimal: null,
+    low: null,
+    medium: null,
+    high: "high",
+    max: "max",
+  });
+});
+
+test("deepseek-responses extension registers without any environment keys", () => {
+  const providers: string[] = [];
+  const events: string[] = [];
+  const pi = {
+    registerProvider: (name: string) => providers.push(name),
+    on: (event: string) => events.push(event),
+  };
+  // 隔离性回归：aihubmix 因缺 AIHUBMIX_API_KEY 加载失败时，
+  // deepseek-responses 扩展必须照常注册（pi 按扩展文件隔离错误）。
+  deepSeekResponsesExtension(pi as never);
+  assert.deepEqual(providers, ["deepseek-responses"]);
+  assert.ok(events.includes("before_provider_request"), "web search hook must be installed");
 });
 
 test("DeepSeek web search is default-on and can be disabled", () => {
