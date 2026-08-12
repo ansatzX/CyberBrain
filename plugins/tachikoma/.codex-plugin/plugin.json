@@ -1,7 +1,7 @@
 {
   "name": "tachikoma",
-  "version": "0.0.4",
-  "description": "Codex-hosted skills for coordinating Codex, Gemini CLI, GitHub Copilot CLI, Kimi Code, OpenCode, and Qwen Code",
+  "version": "0.0.5",
+  "description": "Codex-hosted skills for coordinating Codex, Gemini CLI, GitHub Copilot CLI, Kimi Code, OpenCode, Pi, and Qwen Code",
   "author": {
     "name": "ansatz"
   },
@@ -16,7 +16,7 @@
   "interface": {
     "displayName": "tachikoma",
     "shortDescription": "Skills for coordinating AI CLI tools",
-    "longDescription": "Codex-hosted skills for coordinating currently installed Codex, Gemini CLI, GitHub Copilot CLI, Kimi Code, OpenCode, and Qwen Code CLIs.",
+    "longDescription": "Codex-hosted skills for coordinating currently installed Codex, Gemini CLI, GitHub Copilot CLI, Kimi Code, OpenCode, Pi, and Qwen Code CLIs.",
     "developerName": "ansatz",
     "category": "Developer Tools",
     "capabilities": [

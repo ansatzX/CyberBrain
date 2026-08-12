@@ -1,0 +1,4 @@
+interface:
+  display_name: "Pi"
+  short_description: "Coordinate a current Pi CLI session"
+  default_prompt: "Use $pi to run Pi CLI only after checking the installed command help, preserving the user's configured model unless they explicitly choose another, and establishing the requested permission boundary."
