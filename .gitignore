@@ -1,6 +1,7 @@
 *.claude
 docs/
 .worktrees/
+.tachikoma/
 .local_read_mcp/
 .state-machine/
 .scripts/

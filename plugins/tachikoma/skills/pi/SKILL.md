@@ -31,7 +31,11 @@ pi --print "<prompt>"
 # Structured output for parsing
 pi --print --mode json "<prompt>"
 
-# Continue the most recent session
+# Stable session handle: opens an existing project session by exact id,
+# or creates it with that id on first use — the resume handle for loops
+pi --session-id <stable-id> --print "<message>"
+
+# Continue the most recent session for this project
 pi --continue --print "<follow-up prompt>"
 
 # Target an explicit existing session (path or partial UUID)
@@ -47,7 +51,44 @@ pi --print --tools read "<prompt>"
 pi --no-session --print "<prompt>"
 ```
 
-`--resume` opens an interactive session picker; do not use it in a non-interactive run. `--tools` is an allowlist: `--tools read` disables every other tool (bash, edit, write, and custom tools). If the task must be read-only and a bare read allowlist is too narrow, say so instead of weakening the allowlist.
+`--resume` (`-r`) always opens an interactive TUI session picker; never use it
+inside a non-interactive run. For scripted continuation use `--session-id` or
+`--continue` instead. `--tools` is an allowlist: `--tools read` disables every
+other tool (bash, edit, write, and custom tools). If the task must be read-only
+and a bare read allowlist is too narrow, say so instead of weakening the
+allowlist.
+
+## Iterative resume loop
+
+Pi is the default coding agent in tachikoma. One `--print` run is one turn of a
+longer collaboration; do not assume a task finishes in one run. Loop until the
+task is done, the run fails, or parent judgment is required:
+
+1. **Allocate a stable session id** before the first run, for example
+   `tachikoma-<task-slug>`. Pass it as `--session-id` on every round. The id is
+   the conversation handle: pi keeps its own context in the session file, not
+   in this context.
+2. **Instruct, run, exit.** Each round is `pi --session-id <id> --print
+   "<next instruction>"`. The run stops when it finishes its turn; stdout is
+   the reply to read.
+3. **Read staged results.** Inspect the final response and the artifacts pi
+   wrote to the workspace (files, diffs, checkpoints). The workspace is the
+   shared ground truth between pi and this agent. Maintain the task record per
+   the shared protocol §6: append this round's output to `session.log` behind a
+   `===== round N <timestamp> =====` separator, and rewrite `summary.md` with a
+   round number and timestamp header — then deliver it by cating it into the
+   command stdout; the summary is the only file that may enter this context in
+   full.
+4. **Judge, then instruct.** Done → report. More work → send the next focused
+   instruction through the same session id. Stuck, failed, or needs a decision
+   this agent cannot make → stop and report instead of guessing.
+5. **Bound the loop.** Track rounds; after a small budget with no convergence,
+   stop and report the exact state. Never silently restart with a new session
+   to "retry from scratch" unless the user or parent says so.
+
+Communication contract: pi's concise final response and the workspace artifacts
+are the only channels read; never replay pi's raw transcript into this context.
+Report the session id so the parent can resume the same conversation later.
 
 ## Completion
 

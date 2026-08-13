@@ -17,7 +17,7 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 
 | Plugin | Contents | Status |
 |--------|----------|--------|
-| `awesome-agent-select` | Host-neutral prompted roles rendered for Codex and Pi: review, QA, API docs, performance, tooling, and TypeScript work | Published |
+| `awesome-agent-select` | Host-neutral prompted roles rendered for Codex and Pi: review, QA, API docs, performance, tooling, TypeScript work, and tachikoma delegation | Published |
 | `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code, and Pi | Published |
 | `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
 
@@ -184,6 +184,7 @@ Included agents:
 - `test-automator`
 - `tooling-engineer`
 - `typescript-pro`
+- `tachikoma-runner`
 
 In Codex, the supported installation path is an explicit installer that copies `agents/*.toml` into `~/.codex/agents/` and writes a local manifest.
 

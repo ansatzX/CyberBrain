@@ -1,6 +1,6 @@
 {
   "name": "tachikoma",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Codex-hosted skills for coordinating Codex, Gemini CLI, GitHub Copilot CLI, Kimi Code, OpenCode, Pi, and Qwen Code",
   "author": {
     "name": "ansatz"

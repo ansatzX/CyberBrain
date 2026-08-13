@@ -25,7 +25,7 @@ test("canonical role text renders current Codex and Pi adapters", () => {
 	});
 
 	const profileNames = names(profileDir, ".md");
-	assert.equal(profileNames.length, 9);
+	assert.equal(profileNames.length, 10);
 	assert.deepEqual(names(codexDir, ".toml"), profileNames);
 	assert.deepEqual(names(piAgentsDir, ".md"), profileNames);
 

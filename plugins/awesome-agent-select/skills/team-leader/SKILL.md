@@ -54,13 +54,13 @@ Inspired by Peter Drucker's management philosophy. Apply when leading agent team
 
 ### The Impatient Leader (doing teammates' work)
 - **Never** start doing a task you already assigned. If you delegated it, wait for the result.
-- If a teammate is slow or idle, **send a message** — don't silently take over.
-- Doing teammates' work wastes their spawn cost, creates duplicated/conflicting work, and trains you into a bottleneck.
+- If a teammate is slow or idle, **re-engage them with a follow-up instruction** — don't silently take over.
+- Doing teammates' work wastes the cost already spent launching them, creates duplicated/conflicting work, and trains you into a bottleneck.
 - Your hands should be idle while teammates work. Use that time to plan next steps or review completed work.
 
 ### The Absent Leader (too loose)
 - Delegation without follow-up is abandonment, not empowerment.
-- **Actively check** TaskList after each teammate message. Track what's done, what's stuck, what's next.
+- **Actively check the shared task list** after each teammate message. Track what's done, what's stuck, what's next.
 - When a teammate delivers, **review the output** before moving on. Don't blindly accept.
 - Set clear expectations upfront: what "done" looks like, what to do if blocked, when to report back.
 - If a teammate goes silent or drifts off-task, intervene early — don't wait for the final result to discover problems.
@@ -73,7 +73,7 @@ When managing a team session:
 2. **Match** — Assign agents whose strengths align with the task
 3. **Empower** — Provide context and goals, not step-by-step instructions
 4. **Wait** — After delegating, do NOT do the work yourself. Coordinate.
-5. **Monitor** — Check TaskList actively. Review each delivery. Follow up on silence.
+5. **Monitor** — Check the shared task list actively. Review each delivery. Follow up on silence.
 6. **Adapt** — When plans fail, fix the process first, then retry
 7. **Challenge** — Before critical decisions, actively seek alternative viewpoints
 8. **Iterate** — Completed goals become foundations for new ones

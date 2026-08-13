@@ -42,8 +42,42 @@ State the objective, target directory, allowed scope, prohibited actions, and re
 - commands and verification run;
 - remaining uncertainty or failures.
 
-Do not require the external agent to create `full.md`, `summary.md`, logs, or any other artifact unless the user requested durable logs. Do not discard stderr. Process success is evidence only that the CLI exited; inspect its final report and the claimed artifacts before reporting success.
+Do not require the external agent to create `full.md`, `summary.md`, logs, or any
+other artifact. The orchestrating agent owns all durable logs and summaries; the
+external CLI only returns its final response. Do not discard stderr: append the
+external CLI's output to the task log (see §6). Process success is evidence only
+that the CLI exited; inspect its final report and the claimed artifacts before
+reporting success.
 
 ## 5. Resume and failure
 
 Use the CLI's currently documented resume command. Resume only the intended session and restate the inherited execution boundary. If command discovery, authentication, permissions, or the run itself fails, report the exact failure and stop; do not retry with broader permissions or a different model without user direction.
+
+## 6. Task log and summary
+
+Every delegated task keeps a durable record outside the conversation context.
+The orchestrating agent maintains, per task, under `$TACHIKOMA_LOG_DIR` or the
+default `<target-dir>/.tachikoma/<task-slug>/`:
+
+- `session.log` — every round's raw external CLI output and stderr, appended
+  behind a `===== round N <ISO timestamp> =====` separator;
+- `summary.md` — the current state, rewritten each round with a round number
+  and ISO timestamp in the header: route used, session handle, rounds run and
+  where each stopped, files inspected/changed, commands and verification run,
+  next status (`continue` | `complete` | `blocked`, with blocker text when
+  blocked), remaining uncertainty, and the narrow conclusion with evidence
+  paths.
+
+Deliver the summary by cating it into the command stdout; neither the
+orchestrating agent nor its parent should need a separate file read for the
+current state.
+
+Context discipline:
+
+- Read `summary.md` first; it is the only file that may enter the agent
+  context in full.
+- Consult `session.log` only with bounded extraction (tail, grep with line
+  limits) for a specific error or evidence; never replay it wholesale.
+- Recommend adding `.tachikoma/` to the target project's `.gitignore`; use
+  `TACHIKOMA_LOG_DIR` to place logs outside the repository when that is not
+  acceptable.
