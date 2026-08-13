@@ -51,7 +51,7 @@ ansatz-brain (top-level controller)
     |       brain:think-before-you-calculate   -- calc, training, benchmarks
     |       brain:epistemic-systems-audit      -- papers, claims, evidence
     |       brain:agentic-search               -- web search, source verification, entity disambiguation
-    |       brain:codex-compatible             -- exec_command, sandbox, prefix_rule
+    |       brain:codex-compatible             -- exec_command, sandbox, prefix_rule, subagent delegation
     |
     +-- External skill arsenals (routed, never modified):
             superpowers:using-superpowers         -- superpowers self-routing
@@ -101,7 +101,8 @@ Beyond the foundation, this controller routes to domain skills and external arse
 3. Task involves evaluating a paper, AI4S result, scientific claim, or benchmark evidence?
    -> brain:epistemic-systems-audit
 
-4. Task involves exec_command escalation, sandbox permissions, or prefix_rule usage?
+4. Task involves exec_command escalation, sandbox permissions, prefix_rule usage,
+   or Codex subagent delegation to external AI CLIs?
    -> brain:codex-compatible
 
 5. Task needs superpowers workflows (brainstorming, debugging, TDD, planning, etc.)?
@@ -135,7 +136,7 @@ These thoughts mean STOP — you are accepting a label as understanding:
 | Web search, current facts, source verification, citations, entity/person/paper/project disambiguation | `brain:agentic-search` |
 | Run benchmark, train model, computational search, simulate, optimize, execute workflow | `brain:think-before-you-calculate` |
 | Read paper, review AI4S, judge benchmark result, repair inflated claim | `brain:epistemic-systems-audit` |
-| exec_command escalation, sandbox, prefix_rule | `brain:codex-compatible` |
+| exec_command escalation, sandbox, prefix_rule, Codex subagent delegation | `brain:codex-compatible` |
 | Need superpowers workflows (brainstorming, debugging, TDD, planning) | `superpowers:using-superpowers` |
 
 ## Minimal Fallback
@@ -210,7 +211,7 @@ For durable script discipline (timestamped `.scripts/` files, evidence provenanc
 
 ### Codex Operational Patterns
 
-For `exec_command` escalation, `prefix_rule`, sandbox writable roots, and `uv` cache configuration, route to `brain:codex-compatible`. All operational knowledge lives there.
+For `exec_command` escalation, `prefix_rule`, sandbox writable roots, `uv` cache configuration, and subagent delegation to external AI CLIs, route to `brain:codex-compatible`. All operational knowledge lives there.
 
 
 ## Bottom Line

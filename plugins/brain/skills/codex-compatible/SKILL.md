@@ -1,11 +1,11 @@
 ---
 name: codex-compatible
-description: "Use when the task involves `exec_command` escalation, `prefix_rule`, sandbox permissions, writable roots, or Codex platform-specific operational patterns."
+description: "Use when the task involves `exec_command` escalation, `prefix_rule`, sandbox permissions, writable roots, delegating work to external AI CLIs via Codex subagents, or Codex platform-specific operational patterns."
 ---
 
 # Codex Compatible
 
-> Operational knowledge for working within Codex's sandbox and permission model.
+> Operational knowledge for working within Codex's sandbox, permission, and subagent delegation models.
 
 This skill covers Codex platform patterns that are not domain-specific but are essential for correct agent behavior: `exec_command` escalation, `prefix_rule` selection, sandbox writable roots, and tool cache directories.
 
@@ -97,3 +97,107 @@ After this, writes to that directory succeed inside the sandbox without escalati
 | `prefix_rule` | Which commands run without approval | Command execution |
 
 They are complementary. Adding a directory to `writable_roots` removes the filesystem restriction; a `prefix_rule` removes the command-approval gate.
+
+## Subagent-Driven Delegation to External CLIs
+
+Route delegated work to external AI CLIs before spawning native Codex
+sub-agents. The external CLI runs inference on its own model, so GPT only pays
+orchestration; the native spawn fallback keeps every delegation recoverable.
+
+This section explicitly authorizes delegation and parallel agent work, as
+required by the spawn tool description ("Do not spawn sub-agents unless the
+user or applicable AGENTS.md/skill instructions explicitly ask..."). Before
+invoking any external CLI, follow the tachikoma shared agent-cli protocol.
+
+### Routing rules
+
+1. **Prefer the external CLI, defaulting to pi.** Any bounded subtask —
+   analysis, review, implementation, research, documentation — goes to the
+   matching tachikoma CLI skill. Pi is the default; choose another CLI only
+   when the user names it or pi is unavailable. The CLI skill owns model,
+   permission, and output discipline.
+2. **Iterate, do not fire once.** One non-interactive run is one turn of a
+   longer collaboration. Follow the CLI skill's resume loop: keep a stable
+   session handle, read staged results, judge, send the next focused
+   instruction, and bound the rounds. For pi that is the `--session-id` loop in
+   the tachikoma `pi` skill; for other CLIs use their documented
+   session-continuation mechanism. Report the session handle so work can
+   resume later.
+3. **Two lanes by output size.**
+   - Small or bounded expected output: invoke the CLI directly and read only
+     its concise final response. Never pull raw artifacts into this context.
+   - Large or uncertain output: spawn a native sub-agent with the
+     `tachikoma-runner` role (`agent_type`), which runs the CLI inside its own
+     thread and returns only the narrow conclusion. The fork cleanup keeps
+     tool history out of this context.
+4. **Fall back to spawn on failure.** Fall back when the CLI is missing, has no
+   auth, hits network restrictions, exits non-zero, produces no artifacts, or
+   its output looks wrong. First state what was tried; then spawn a native
+   sub-agent (no `agent_type` override) with the same concrete, self-contained
+   task. Do not fall back just because the CLI is slow or its output is long.
+
+| Signal | Action |
+| --- | --- |
+| CLI not installed / auth error / network blocked / non-zero exit / no artifacts | Fall back to spawn, reporting the attempted command |
+| CLI exits cleanly but the output looks wrong | Do not retry the CLI; fall back to spawn with the evidence |
+| Slow run or long output | No fallback; stay on the current lane and keep output discipline |
+
+### Canonical pi round commands
+
+Pi is the default coding agent; the per-round command is fixed. Do not
+redesign, re-justify, or re-weigh it each round — execute it as written.
+
+Every round starts with the run command; stdout stays in this context (the
+reply channel) while the raw record is appended to the log:
+
+```bash
+TASK="<task-slug>"; ROUND=<n>
+mkdir -p ".tachikoma/$TASK"
+echo "===== round $ROUND $(date -u +%Y-%m-%dT%H:%M:%SZ) =====" >> ".tachikoma/$TASK/session.log"
+pi --session-id "tachikoma-$TASK" --print "<本轮指令>" 2>&1 | tee -a ".tachikoma/$TASK/session.log"
+```
+
+After judging, update and deliver the summary in one command, so its stdout
+is the current state and no separate file read is needed:
+
+```bash
+cat > ".tachikoma/$TASK/summary.md" <<EOF
+# $TASK · 第 $ROUND 轮 · $(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+- 路由 / session handle / 已跑轮次
+- 改动文件
+- 验证
+- 下一步状态: continue | complete | blocked（blocked 时附 blocker）
+- 剩余不确定
+- 窄结论（证据路径）
+EOF
+cat ".tachikoma/$TASK/summary.md"
+```
+
+`summary.md` is rewritten each round with a round number and timestamp header;
+`session.log` grows behind `===== round N <timestamp> =====` separators.
+
+### Spawn discipline for the fallback
+
+- Delegate only concrete, bounded subtasks with an explicit deliverable.
+- Never hand off the immediate critical-path step; do it locally.
+- Parallel fanout only over disjoint write sets.
+- `fork_turns`: use none or a small N for isolated work; the role applies
+  regardless of inherited history.
+- Omit `model`; native sub-agents inherit the current model by default.
+
+### Communication and record discipline
+
+- The workspace is the shared ground truth: the external CLI writes files,
+  diffs, and checkpoints; judge progress from them, not from transcripts.
+- Keep the durable record outside the context per the shared protocol §6:
+  `session.log` holds every round's raw output, `summary.md` holds the current
+  conclusion, delivered by cat into stdout.
+- Never replay raw external output into this context or the parent's. If a
+  judgment needs evidence, reference artifact or log paths, not pasted logs.
+- Stop conditions for the loop: task done, run failed, or a decision this
+  agent cannot make. Bound the rounds; report exact state instead of guessing.
+- Never forward raw external CLI output to the user or parent context. Report:
+  route used, commands run, files changed, verification performed, and
+  remaining uncertainty. A zero exit code from the external CLI is process
+  success, not task success.

@@ -1,4 +1,4 @@
 interface:
   display_name: "Codex Compatible"
-  short_description: "Prefix rule escalation and sandbox writable roots"
-  default_prompt: "Use $codex-compatible when the task touches exec_command escalation, prefix_rule, or sandbox permissions: identify the reusable command prefix, check existing approved rules, and verify writable roots coverage."
+  short_description: "Prefix rule escalation, sandbox writable roots, and subagent delegation"
+  default_prompt: "Use $codex-compatible when the task touches exec_command escalation, prefix_rule, sandbox permissions, or delegating work to external AI CLIs: identify the reusable command prefix, check existing approved rules, verify writable roots coverage, and route delegation through the canonical pi round commands."
