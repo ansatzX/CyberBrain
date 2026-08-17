@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { goalSetObjective } from "../extensions/goal.ts";
-import { goalFilePath, loadGoal, saveGoal, createGoal, archiveGoal, updateGoalStatus, registerBlockedOccurrence, objectiveUpdatedPrompt, continuationPrompt, toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue, pauseGoal, resumeGoal, type GoalState } from "../lib/goal-core.ts";
+import goalExtension, { goalSetObjective, shouldQueueGoalContinuation } from "../extensions/goal.ts";
+import { goalFilePath, getSessionThreadId, loadGoal, saveGoal, createGoal, archiveGoal, updateGoalStatus, registerBlockedOccurrence, objectiveUpdatedPrompt, continuationPrompt, toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue, pauseGoal, resumeGoal, type GoalState } from "../lib/goal-core.ts";
 
 // 用环境变量覆盖存储目录，避免污染真实 ~/.pi/agent/goals
 process.env.PI_GOAL_TEST_DIR = mkdtempSync(join(tmpdir(), "goal-test-"));
@@ -158,11 +158,60 @@ test("continuationPrompt 包含行为规范", () => {
 	assert.ok(!p.includes("Progress")); // v2 无步骤列表
 });
 
-test("goal extension 不包含 agent_settled 自动续跑 hook", () => {
-	const extension = readFileSync(new URL("../extensions/goal.ts", import.meta.url), "utf8");
-	assert.doesNotMatch(extension, /pi\.on\("agent_settled"/);
-	assert.doesNotMatch(extension, /Goal auto-continue/);
-	assert.match(extension, /Starting one explicit continuation turn/);
+test("goal continuation 仅对未排队的 active goal 允许", () => {
+	const active: GoalState = {
+		thread_id: "t", goal_id: "g", objective: "目标", status: "active",
+		created_at: "", updated_at: "", blocked_streak: 0, blocked_condition: null,
+		last_blocked_turn_id: null, status_reason: null,
+	};
+	assert.equal(shouldQueueGoalContinuation(active, false), true);
+	assert.equal(shouldQueueGoalContinuation(active, true), false);
+	assert.equal(shouldQueueGoalContinuation({ ...active, status: "blocked" }, false), false);
+	assert.equal(shouldQueueGoalContinuation(null, false), false);
+});
+
+test("agent_settled 为 active goal 排入一次后续工作并在下一 run 后允许再排", async () => {
+	const handlers = new Map<string, (event: unknown, ctx: any) => Promise<void>>();
+	const sent: Array<{ content: string; options: unknown }> = [];
+	goalExtension({
+		on(event: string, handler: (event: unknown, ctx: any) => Promise<void>) { handlers.set(event, handler); },
+		registerCommand() {}, registerTool() {},
+		sendUserMessage(content: string, options: unknown) { sent.push({ content, options }); },
+	} as any);
+
+	const sessionFile = "/tmp/goal-extension-cycle.jsonl";
+	const ctx = { sessionManager: { getSessionFile: () => sessionFile }, ui: { notify() {} } };
+	createGoal(getSessionThreadId(sessionFile), "循环目标");
+	await handlers.get("agent_settled")?.({}, ctx);
+	await handlers.get("agent_settled")?.({}, ctx);
+	assert.equal(sent.length, 1);
+	assert.deepEqual(sent[0].options, { deliverAs: "followUp" });
+	await handlers.get("agent_start")?.({}, ctx);
+	await handlers.get("agent_settled")?.({}, ctx);
+	assert.equal(sent.length, 2);
+	updateGoalStatus(getSessionThreadId(sessionFile), "complete", "完成", "turn-1");
+	await handlers.get("agent_start")?.({}, ctx);
+	await handlers.get("agent_settled")?.({}, ctx);
+	assert.equal(sent.length, 2);
+});
+
+test("agent_settled 不为 paused、blocked 或 abandoned goal 排入后续工作", async () => {
+	for (const status of ["paused", "blocked", "abandoned"] as const) {
+		const handlers = new Map<string, (event: unknown, ctx: any) => Promise<void>>();
+		const sent: string[] = [];
+		goalExtension({
+			on(event: string, handler: (event: unknown, ctx: any) => Promise<void>) { handlers.set(event, handler); },
+			registerCommand() {}, registerTool() {},
+			sendUserMessage(content: string) { sent.push(content); },
+		} as any);
+		const sessionFile = `/tmp/goal-extension-${status}.jsonl`;
+		const threadId = getSessionThreadId(sessionFile);
+		const goal = createGoal(threadId, `${status} 目标`);
+		saveGoal({ ...goal, status });
+		const ctx = { sessionManager: { getSessionFile: () => sessionFile }, ui: { notify() {} } };
+		await handlers.get("agent_settled")?.({}, ctx);
+		assert.equal(sent.length, 0, status);
+	}
 });
 
 test("goal set 仅接受显式 set 子命令", () => {

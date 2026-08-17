@@ -228,6 +228,8 @@ export function continuationPrompt(goal: GoalState): string {
 		"- 目标跨轮次持续存在；本轮回合不必缩小目标范围。",
 		"- 以当前工作区和外部状态为权威证据，先检查现状再决定下一步。",
 		"- 完成审计：标记 complete 前必须逐条验证目标要求已被当前状态满足；证据不足就继续干活。",
+		"- 若存在仍可执行、可验证的下一步，执行它；不要只重复无信息增益的状态审计。",
+		"- 若同一外部条件使本轮没有可执行下一步或新证据，调用 update_goal(status=\"blocked\", reason=<稳定且具体的同一原因>) 登记它；前两次 1/3、2/3 仍需等待自动下一轮，第三次会停止。",
 		"- 调用 update_goal 工具，status=\"complete\" 并附理由；只有同一阻塞在至少 3 个不同 goal turn 中被显式报告后才能 status=\"blocked\"。",
 		"- 不要因为难、慢或成本原因标记 complete/blocked。",
 		"- 目标状态可通过 get_goal 工具查询。",

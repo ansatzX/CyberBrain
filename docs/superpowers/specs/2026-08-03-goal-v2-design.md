@@ -1,13 +1,13 @@
 # Goal 系统 v2 设计（pi 扩展，对齐 codex goal 架构）
 
 日期：2026-08-03
-状态：已实现并验证；2026-08-17 修订为**显式启动、无自动续跑**。
+状态：已实现并验证；2026-08-17 修订为**自动续跑、每个 idle boundary 去重**。
 
 ## 原则
 
 - 扩展代码是状态机 owner；模型永远不直接写状态文件。
-- 日常轮次零注入；`/ansatz:goal set` 与 `/ansatz:goal resume` 都是显式用户动作，各自只启动一轮消息。
-- active goal 保存目标和状态，**但 `agent_settled` 不得自动续跑**。模型完成一轮后由用户下一次输入、显式 resume，或另行实现的有界调度器决定是否继续。
+- 日常轮次零注入；`/ansatz:goal set` 与 `/ansatz:goal resume` 都是显式用户动作，各自启动首轮消息。
+- active goal 在 `agent_settled` 后自动续跑；同一 session 的一个 idle boundary 最多排入一条 follow-up，终态或暂停状态不续跑。
 - 模型只可通过 `create_goal`、`get_goal`、`update_goal` 交互。
 
 ## 存储
@@ -65,7 +65,7 @@ turn identity 来源于 pi 的 `turn_start { turnIndex, timestamp }` 事件。
 - `/ansatz:goal resume`
 - `/ansatz:goal clear [reason]`
 
-在 `/ansatz:goal` 命令中，只有显式 `set <objective>` 能创建目标；未知或拼错的子命令只显示 usage，不能意外启动 agent turn。`create_goal` 工具仍可在用户或系统明确要求时创建目标。pause 保留目标并停止工作；resume 重置 blocked audit 并立即发送**一条** continuation。
+在 `/ansatz:goal` 命令中，在 `/ansatz:goal` 命令中，只有显式 `set <objective>` 能创建目标；未知或拼错的子命令只显示 usage，不能意外启动 agent turn。`create_goal` 工具仍可在用户或系统明确要求时创建目标。pause 保留目标并停止工作；resume 重置 blocked audit 并立即发送首轮 continuation，之后 active goal 自动续跑。
 
 ## 续跑边界
 
@@ -78,13 +78,16 @@ explicit /ansatz:goal resume
   -> send one continuation message
 
 agent_settled
-  -> remain idle
+  -> load current session goal
+  -> active && no continuation already queued for this idle boundary
+       ? queue one continuation as followUp
+       : stop
 ```
 
-`agent_settled` 是空闲状态通知，不是 active goal 的授权续跑信号。无条件 follow-up 会在模型报告等待外部输入、授权或无新证据时形成无限循环；不得使用。
+`agent_settled` 是 active goal 的续跑触发点，但不能以“每次事件无条件 send”实现。插件按 thread 保存 queued guard：同一 idle boundary 只排入一条 follow-up；下一轮 `agent_start` 消费该 guard。complete、blocked、paused、abandoned 都不续跑。continuation prompt 要求模型继续可执行工作；若同一外部条件使本轮没有可执行下一步或新证据，必须显式报告 `update_goal(status="blocked")`，第 3 次同条件报告将终止续跑。
 
 ## 测试
 
 - `pi/test/goal-core.test.ts`：JSON 往返、旧格式迁移、状态迁移、同条件按 turn 的 blocked audit、条件变更重置、pause/resume、工具返回文本和 prompt。
-- 回归检查：goal extension 不注册 `agent_settled` 自动 follow-up；只有 `set` 与 `resume` 路径可以启动一轮。
+- 回归检查：active settled goal 每个 idle boundary 只自动排入一条 follow-up；下一轮开始后允许下一次续跑；非 active 状态不续跑。
 - 固定 session 的 print smoke 可验证 set → pause → resume → clear；print 模式 session 路径必须固定，避免 threadId 漂移。

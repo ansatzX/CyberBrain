@@ -5,8 +5,8 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	loadGoal, createGoal, archiveGoal,
 	objectiveUpdatedPrompt, continuationPrompt,
-	toolGetGoal, toolCreateGoal, toolUpdateGoal,
-	pauseGoal, resumeGoal, getSessionThreadId,
+	toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue,
+	pauseGoal, resumeGoal, getSessionThreadId, type GoalState,
 } from "../lib/goal-core.ts";
 
 export function goalSetObjective(args: string): string | null {
@@ -16,8 +16,14 @@ export function goalSetObjective(args: string): string | null {
 	return objective || null;
 }
 
+/** A settled active goal gets one follow-up; terminal, paused, and queued goals do not. */
+export function shouldQueueGoalContinuation(goal: GoalState | null, alreadyQueued: boolean): boolean {
+	return Boolean(goal && shouldContinue(goal) && !alreadyQueued);
+}
+
 export default function goalExtension(pi: ExtensionAPI) {
 	const activeTurnIds = new Map<string, string>();
+	const queuedContinuations = new Set<string>();
 	const threadIdFor = (ctx: { sessionManager: { getSessionFile(): string | undefined } }): string =>
 		getSessionThreadId(ctx.sessionManager.getSessionFile());
 	const turnIdFor = (threadId: string): string =>
@@ -25,6 +31,13 @@ export default function goalExtension(pi: ExtensionAPI) {
 
 	pi.on("turn_start", async (event, ctx) => {
 		activeTurnIds.set(threadIdFor(ctx), `${event.timestamp}:${event.turnIndex}`);
+	});
+
+	// A queued continuation has been consumed once its agent run begins. The
+	// guard prevents duplicate settled handlers from queueing a second follow-up
+	// for the same idle boundary without suppressing the next work cycle.
+	pi.on("agent_start", async (_event, ctx) => {
+		queuedContinuations.delete(threadIdFor(ctx));
 	});
 
 	// ---------- 命令层 ----------
@@ -168,7 +181,15 @@ export default function goalExtension(pi: ExtensionAPI) {
 		},
 	});
 
-	// An active goal preserves context and state; it does not authorize an
-	// unbounded self-follow-up loop. agent_settled means Pi is idle, so leave
-	// control with the user or an explicit /ansatz:goal resume action.
+	// ---------- 续跑层 ----------
+	// Goal continuation is intentionally driven by agent_settled: after each
+	// completed model run, an active goal receives one next-turn prompt. A
+	// per-thread guard makes this idempotent for a single idle boundary.
+	pi.on("agent_settled", async (_event, ctx) => {
+		const threadId = threadIdFor(ctx);
+		const goal = loadGoal(threadId);
+		if (!shouldQueueGoalContinuation(goal, queuedContinuations.has(threadId))) return;
+		queuedContinuations.add(threadId);
+		pi.sendUserMessage(continuationPrompt(goal), { deliverAs: "followUp" });
+	});
 }
