@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { goalFilePath, loadGoal, saveGoal, createGoal, archiveGoal, updateGoalStatus, registerBlockedOccurrence, resetBlockedAuditAfterUnblockedTurn, objectiveUpdatedPrompt, continuationPrompt, toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue, pauseGoal, resumeGoal, type GoalState } from "../lib/goal-core.ts";
+import { goalSetObjective } from "../extensions/goal.ts";
+import { goalFilePath, loadGoal, saveGoal, createGoal, archiveGoal, updateGoalStatus, registerBlockedOccurrence, objectiveUpdatedPrompt, continuationPrompt, toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue, pauseGoal, resumeGoal, type GoalState } from "../lib/goal-core.ts";
 
 // 用环境变量覆盖存储目录，避免污染真实 ~/.pi/agent/goals
 process.env.PI_GOAL_TEST_DIR = mkdtempSync(join(tmpdir(), "goal-test-"));
@@ -99,23 +100,33 @@ test("updateGoalStatus blocked streak 累积", () => {
 test("同一个 turn 只能计一次 blocked，跨 turn 才累积", () => {
 	createGoal("thread-c4", "目标");
 	registerBlockedOccurrence("thread-c4", "turn-1", "网络断了");
-	registerBlockedOccurrence("thread-c4", "turn-1", "网络还是不可用");
-	registerBlockedOccurrence("thread-c4", "turn-2", "网络仍然不可用");
+	registerBlockedOccurrence("thread-c4", "turn-1", "权限不足");
+	registerBlockedOccurrence("thread-c4", "turn-2", "网络断了");
 	const g = loadGoal("thread-c4");
 	assert.ok(g);
 	assert.equal(g.blocked_streak, 2);
 	assert.equal(g.last_blocked_turn_id, "turn-2");
 });
 
-test("中间出现未阻塞 turn 时 blocked audit 重置", () => {
+test("不同 blocked condition 开始新的 audit", () => {
 	createGoal("thread-c5", "目标");
 	registerBlockedOccurrence("thread-c5", "turn-1", "网络断了");
-	resetBlockedAuditAfterUnblockedTurn("thread-c5", "turn-2");
+	registerBlockedOccurrence("thread-c5", "turn-2", "权限不足");
 	const g = loadGoal("thread-c5");
 	assert.ok(g);
-	assert.equal(g.blocked_streak, 0);
-	assert.equal(g.blocked_condition, null);
-	assert.equal(g.last_blocked_turn_id, null);
+	assert.equal(g.blocked_streak, 1);
+	assert.equal(g.blocked_condition, "权限不足");
+	assert.equal(g.last_blocked_turn_id, "turn-2");
+});
+
+test("相同 blocked condition 可跨后续 turn 累积", () => {
+	createGoal("thread-c6", "目标");
+	registerBlockedOccurrence("thread-c6", "turn-1", "等待 owner 授权");
+	registerBlockedOccurrence("thread-c6", "turn-3", "等待  owner\n授权");
+	const g = loadGoal("thread-c6");
+	assert.ok(g);
+	assert.equal(g.blocked_streak, 2);
+	assert.equal(g.blocked_condition, "等待 owner 授权");
 });
 
 test("blocked goal 仍未完成，createGoal 必须拒绝覆盖", () => {
@@ -145,6 +156,21 @@ test("continuationPrompt 包含行为规范", () => {
 	assert.match(p, /update_goal/);
 	assert.match(p, /blocked/);
 	assert.ok(!p.includes("Progress")); // v2 无步骤列表
+});
+
+test("goal extension 不包含 agent_settled 自动续跑 hook", () => {
+	const extension = readFileSync(new URL("../extensions/goal.ts", import.meta.url), "utf8");
+	assert.doesNotMatch(extension, /pi\.on\("agent_settled"/);
+	assert.doesNotMatch(extension, /Goal auto-continue/);
+	assert.match(extension, /Starting one explicit continuation turn/);
+});
+
+test("goal set 仅接受显式 set 子命令", () => {
+	assert.equal(goalSetObjective("set 重构目标"), "重构目标");
+	assert.equal(goalSetObjective("SET\t重构目标"), "重构目标");
+	assert.equal(goalSetObjective("set"), null);
+	assert.equal(goalSetObjective("目标"), null);
+	assert.equal(goalSetObjective("setup 目标"), null);
 });
 
 // ---------- 工具 handler 纯函数 ----------
@@ -181,6 +207,7 @@ test("toolUpdateGoal blocked 未满 3 轮返回 error 含进度", () => {
 	const t1 = toolUpdateGoal("thread-tool-4", "blocked", "卡住", "turn-1");
 	assert.match(t1, /^error:/);
 	assert.match(t1, /1\/3/);
+	assert.match(t1, /explicitly reported/);
 	const t2 = toolUpdateGoal("thread-tool-4", "blocked", "卡住", "turn-2");
 	assert.match(t2, /2\/3/);
 });

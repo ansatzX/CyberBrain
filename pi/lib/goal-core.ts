@@ -146,23 +146,30 @@ export function archiveGoal(threadId: string, reason: string): GoalState | null 
 	return goal;
 }
 
+function normalizeBlockedCondition(condition: string): string {
+	return condition.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Record an explicit blocked report from one goal turn.
+ *
+ * A new turn cannot reliably tell whether the model made progress: a settled
+ * model may have used no tools, or may simply be waiting for an external
+ * decision. Therefore only an explicit update_goal(status="blocked") report
+ * participates in this audit. A different reported condition starts a new
+ * three-turn audit; the same condition accumulates across distinct turns.
+ */
 export function registerBlockedOccurrence(threadId: string, turnId: string, condition: string): void {
 	const goal = loadGoal(threadId);
 	if (!goal || goal.status !== "active" || goal.last_blocked_turn_id === turnId) return;
-	goal.blocked_streak += 1;
-	goal.blocked_condition = condition;
-	goal.last_blocked_turn_id = turnId;
-	goal.updated_at = new Date().toISOString();
-	saveGoal(goal);
-}
 
-export function resetBlockedAuditAfterUnblockedTurn(threadId: string, previousTurnId: string): void {
-	const goal = loadGoal(threadId);
-	if (!goal || goal.status !== "active" || goal.blocked_streak === 0) return;
-	if (goal.last_blocked_turn_id === previousTurnId) return;
-	goal.blocked_streak = 0;
-	goal.blocked_condition = null;
-	goal.last_blocked_turn_id = null;
+	const normalizedCondition = normalizeBlockedCondition(condition);
+	if (goal.blocked_condition !== normalizedCondition) {
+		goal.blocked_streak = 0;
+	}
+	goal.blocked_streak += 1;
+	goal.blocked_condition = normalizedCondition;
+	goal.last_blocked_turn_id = turnId;
 	goal.updated_at = new Date().toISOString();
 	saveGoal(goal);
 }
@@ -191,7 +198,7 @@ export function updateGoalStatus(
 	if (!current || current.blocked_streak < 3) {
 		return {
 			ok: false,
-			error: `The blocking condition must recur across at least 3 distinct goal turns before marking blocked (currently ${current ? current.blocked_streak : 0}/3).`,
+			error: `The same blocking condition must be explicitly reported in at least 3 distinct goal turns before marking blocked (currently ${current ? current.blocked_streak : 0}/3).`,
 		};
 	}
 	current.status = "blocked";
@@ -208,7 +215,7 @@ export function objectiveUpdatedPrompt(goal: GoalState): string {
 		"行为要求：",
 		"- 从当前工作区证据出发推进目标，不要重定义成功标准。",
 		"- 目标达成后调用 update_goal 工具，status=\"complete\"，附理由。",
-		"- 同一阻塞连续出现 3 个不同 goal turn 才可调用 update_goal，status=\"blocked\"。",
+		"- 同一阻塞在至少 3 个不同 goal turn 中被显式报告后，才可调用 update_goal，status=\"blocked\"。",
 		"- 目标状态可通过 get_goal 工具随时查询。",
 	].join("\n");
 }
@@ -221,7 +228,7 @@ export function continuationPrompt(goal: GoalState): string {
 		"- 目标跨轮次持续存在；本轮回合不必缩小目标范围。",
 		"- 以当前工作区和外部状态为权威证据，先检查现状再决定下一步。",
 		"- 完成审计：标记 complete 前必须逐条验证目标要求已被当前状态满足；证据不足就继续干活。",
-		"- 调用 update_goal 工具，status=\"complete\" 并附理由；只有同一阻塞跨 3 个不同 goal turn 才能 status=\"blocked\"。",
+		"- 调用 update_goal 工具，status=\"complete\" 并附理由；只有同一阻塞在至少 3 个不同 goal turn 中被显式报告后才能 status=\"blocked\"。",
 		"- 不要因为难、慢或成本原因标记 complete/blocked。",
 		"- 目标状态可通过 get_goal 工具查询。",
 	].join("\n");

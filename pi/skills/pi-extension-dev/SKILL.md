@@ -64,7 +64,7 @@ pi.registerCommand("deploy", {
 | `before_agent_start` | 每轮 turn 前 | **注入上下文**（返回 `{ systemPrompt }` 或 `{ message }`），如 goal 状态 |
 | `tool_call` | 工具调用前 | **拦截**（返回 `{ block: true, reason }`），如危险命令权限门 |
 | `turn_end` | 每轮结束 | 解析模型输出（如 `[DONE:n]` 标记）更新状态 |
-| `agent_settled` | agent 完全结束（无重试/续跑） | 触发后续动作，如 goal 自动续跑 |
+| `agent_settled` | agent 完全结束（无重试/续跑） | 空闲状态通知；不要无条件注入 follow-up，避免自续跑循环 |
 | `context` | 消息发给模型前 | 过滤/改写消息 |
 
 完整生命周期图与签名：见 [docs/events.md](docs/events.md)。
@@ -101,7 +101,7 @@ pi.registerCommand("deploy", {
 - **新沉淀 = 扔一个 .md 文件进 `~/.pi/agent/slashes/`，`/reload` 即生效**（命令自动带 `ansatz:` 前缀）
 - 命名空间约定：自定义 slash 一律 `/<ns>:<name>`（如 `/ansatz:review`、`/skill:tdd` 是 pi 内置格式）；pi 命令解析按空格分割取命令名，冒号原样支持
 - 样板：`Cyberbrain/pi/slashes/python.md`（Python agent，Google style + current docs + what/why；context7 仅在可用时使用）
-- **goal 系统 v2**（对齐 codex `ext/goal/` 架构）：`extensions/goal.ts`（命令/工具/事件壳）+ `lib/goal-core.ts`（纯逻辑可单测：存储/状态机/校验/注入文本）。模型只能通过 `get_goal`/`create_goal`/`update_goal` 工具交互（update 仅 complete 须理由 / blocked 须 3 轮阈值），日常零注入（事件驱动），续跑 = `agent_settled` 立即（零间隔，对齐 codex on_thread_idle）
+- **goal 系统 v2**（对齐 codex `ext/goal/` 架构）：`extensions/goal.ts`（命令/工具/事件壳）+ `lib/goal-core.ts`（纯逻辑可单测：存储/状态机/校验/注入文本）。模型只能通过 `get_goal`/`create_goal`/`update_goal` 工具交互（update 仅 complete 须理由 / blocked 须同一条件在至少 3 个不同 turn 被显式报告），日常零注入；仅显式 `/ansatz:goal set` 或 `/ansatz:goal resume` 启动一轮。active goal 保留状态但绝不由 `agent_settled` 自动 follow-up，以免产生无限续跑循环。
 - **环境事实（实测）**：① `extensions/` 下**所有 .ts 都被当扩展加载**——辅助模块必须放 `~/.pi/agent/lib/`；② 同一扩展被双加载（自动 + `-e`）时命令名变 `:1/:2` 导致原命令失效——测试用 `-ne -e`；③ print 模式每次 session 文件不同（threadId 漂移）——测试用 `--session <固定路径>`；④ `registerTool` 的 `parameters` 必须是合法 JSON Schema（`{ type: "object", properties: {} }`，不能是空 `{}`）
 
 ## 完整示例

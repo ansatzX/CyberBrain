@@ -8,8 +8,8 @@
  * goal 系统已迁移到 extensions/goal.ts（v2）：
  *   - 存储/状态机/校验：lib/goal-core.ts（纯逻辑，可单测）
  *   - 模型入口：get_goal / create_goal / update_goal 工具
- *   - 注入：事件驱动（objective_updated / continuation），日常零注入
- *   - 续跑：agent_settled 立即续跑，直到 complete/blocked/pause/clear
+ *   - 注入：仅在显式 set / resume 时发送一轮，日常零注入
+ *   - active goal 会保留状态；后续工作由用户输入或显式 resume 启动
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";

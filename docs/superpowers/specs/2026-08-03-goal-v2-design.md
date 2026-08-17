@@ -1,13 +1,13 @@
 # Goal 系统 v2 设计（pi 扩展，对齐 codex goal 架构）
 
 日期：2026-08-03
-状态：已实现并验证
+状态：已实现并验证；2026-08-17 修订为**显式启动、无自动续跑**。
 
 ## 原则
 
 - 扩展代码是状态机 owner；模型永远不直接写状态文件。
-- 日常轮次零注入；设置、恢复与自动续跑通过显式消息驱动。
-- `agent_settled` 后只要 goal 仍为 active，就立即续跑；终止靠 complete / blocked / pause / clear。
+- 日常轮次零注入；`/ansatz:goal set` 与 `/ansatz:goal resume` 都是显式用户动作，各自只启动一轮消息。
+- active goal 保存目标和状态，**但 `agent_settled` 不得自动续跑**。模型完成一轮后由用户下一次输入、显式 resume，或另行实现的有界调度器决定是否继续。
 - 模型只可通过 `create_goal`、`get_goal`、`update_goal` 交互。
 
 ## 存储
@@ -52,8 +52,8 @@
 参数：`status: complete | blocked`、`reason`。
 
 - complete：必须附完成理由。
-- blocked：必须跨三个**不同 turn** 调用；同一 turn 的重复/并行调用最多计一次。
-- 如果中间出现一个没有 blocked 声明的 turn，blocked audit 重置。
+- blocked：同一阻塞条件必须在至少三个**不同 turn 中被显式报告**；同一 turn 的重复/并行调用最多计一次。
+- 条件按 trim 和空白归一化比较。报告不同条件会开始新的 blocked audit；未显式报告 blocked 的中间 turn 不会被插件猜测为进展或阻塞。
 
 turn identity 来源于 pi 的 `turn_start { turnIndex, timestamp }` 事件。
 
@@ -65,20 +65,26 @@ turn identity 来源于 pi 的 `turn_start { turnIndex, timestamp }` 事件。
 - `/ansatz:goal resume`
 - `/ansatz:goal clear [reason]`
 
-pause 保留目标但停止自动续跑；resume 重置 blocked audit 并立即发送 continuation。
+在 `/ansatz:goal` 命令中，只有显式 `set <objective>` 能创建目标；未知或拼错的子命令只显示 usage，不能意外启动 agent turn。`create_goal` 工具仍可在用户或系统明确要求时创建目标。pause 保留目标并停止工作；resume 重置 blocked audit 并立即发送**一条** continuation。
 
-## 自动续跑
+## 续跑边界
 
 ```text
+explicit /ansatz:goal set
+  -> send one objective message
+
+explicit /ansatz:goal resume
+  -> reset blocked audit
+  -> send one continuation message
+
 agent_settled
-  -> load current session goal
-  -> status == active ? send continuation as followUp : stop
+  -> remain idle
 ```
 
-没有时间冷却；与 codex `on_thread_idle` 一致。用户已明确接受持续模型调用的成本。
+`agent_settled` 是空闲状态通知，不是 active goal 的授权续跑信号。无条件 follow-up 会在模型报告等待外部输入、授权或无新证据时形成无限循环；不得使用。
 
 ## 测试
 
-- `~/.pi/agent/lib/goal-core.test.ts`：JSON 往返、旧格式迁移、状态迁移、按 turn blocked audit、pause/resume、工具返回文本、续跑条件。
-- 固定 session 的 print smoke：set → pause → resume → clear。
-- 工具真实调用已验证：get/create/update complete；blocked 按 turn 逻辑由纯函数测试覆盖。
+- `pi/test/goal-core.test.ts`：JSON 往返、旧格式迁移、状态迁移、同条件按 turn 的 blocked audit、条件变更重置、pause/resume、工具返回文本和 prompt。
+- 回归检查：goal extension 不注册 `agent_settled` 自动 follow-up；只有 `set` 与 `resume` 路径可以启动一轮。
+- 固定 session 的 print smoke 可验证 set → pause → resume → clear；print 模式 session 路径必须固定，避免 threadId 漂移。
