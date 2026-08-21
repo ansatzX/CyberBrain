@@ -6,7 +6,7 @@ import {
 	loadGoal, createGoal, archiveGoal,
 	objectiveUpdatedPrompt, continuationPrompt,
 	toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue,
-	pauseGoal, resumeGoal, getSessionThreadId, type GoalState,
+	pauseGoal, resumeGoal, getSessionThreadId, recordContinuationTurn, toolCallMakesProgress, type GoalState,
 } from "../lib/goal-core.ts";
 
 export function goalSetObjective(args: string): string | null {
@@ -24,6 +24,14 @@ export function shouldQueueGoalContinuation(goal: GoalState | null, alreadyQueue
 export default function goalExtension(pi: ExtensionAPI) {
 	const activeTurnIds = new Map<string, string>();
 	const queuedContinuations = new Set<string>();
+	// Progress-making tool calls in the current agent run, per thread. A goal
+	// turn that only inspects state changed nothing observable — it restated its
+	// own status — and is what the idle budget is meant to catch.
+	const turnToolCalls = new Map<string, number>();
+	// Error reported by the most recent agent_end, per thread. agent_settled
+	// carries no payload, so the failure has to be captured when agent_end
+	// delivers the messages and consumed at the settle boundary.
+	const turnErrors = new Map<string, string>();
 	const threadIdFor = (ctx: { sessionManager: { getSessionFile(): string | undefined } }): string =>
 		getSessionThreadId(ctx.sessionManager.getSessionFile());
 	const turnIdFor = (threadId: string): string =>
@@ -33,11 +41,34 @@ export default function goalExtension(pi: ExtensionAPI) {
 		activeTurnIds.set(threadIdFor(ctx), `${event.timestamp}:${event.turnIndex}`);
 	});
 
+	// Progress is judged on tool *results*, not tool calls: a failed call is a
+	// stall, not work, and only the result carries isError.
+	pi.on("tool_result", async (event, ctx) => {
+		if (!toolCallMakesProgress(event.toolName, event.input, Boolean(event.isError))) return undefined;
+		const threadId = threadIdFor(ctx);
+		turnToolCalls.set(threadId, (turnToolCalls.get(threadId) ?? 0) + 1);
+		return undefined;
+	});
+
 	// A queued continuation has been consumed once its agent run begins. The
 	// guard prevents duplicate settled handlers from queueing a second follow-up
 	// for the same idle boundary without suppressing the next work cycle.
 	pi.on("agent_start", async (_event, ctx) => {
-		queuedContinuations.delete(threadIdFor(ctx));
+		const threadId = threadIdFor(ctx);
+		queuedContinuations.delete(threadId);
+		turnToolCalls.set(threadId, 0);
+		turnErrors.delete(threadId);
+	});
+
+	// agent_end fires once per low-level run and carries the messages; a failed
+	// run ends with an assistant message whose stopReason is "error". "aborted"
+	// is excluded on purpose: that is the user pressing Esc, not a broken state.
+	pi.on("agent_end", async (event, ctx) => {
+		const threadId = threadIdFor(ctx);
+		const messages = (event.messages ?? []) as Array<{ stopReason?: string; errorMessage?: string }>;
+		const failed = messages.findLast((message) => message.stopReason === "error");
+		if (failed) turnErrors.set(threadId, failed.errorMessage?.trim() || "unknown model or runtime error");
+		else turnErrors.delete(threadId);
 	});
 
 	// ---------- 命令层 ----------
@@ -66,6 +97,13 @@ export default function goalExtension(pi: ExtensionAPI) {
 					`Updated: ${g.updated_at}`,
 					`Blocked streak: ${g.blocked_streak}`,
 				];
+				if (g.blocked_condition) items.push(`Blocking condition: ${g.blocked_condition}`);
+				if (g.status_reason) items.push(`Reason: ${g.status_reason}`);
+				// A stalled goal is recoverable; say so, otherwise the only discoverable
+				// exit looks like `clear`, which discards the objective and its history.
+				if (g.status === "blocked" || g.status === "paused") {
+					items.push(`Next: /ansatz:goal resume to continue, or /ansatz:goal clear to abandon.`);
+				}
 				if (ctx.hasUI) {
 					await ctx.ui.select("Current Goal", items);
 				} else {
@@ -80,6 +118,11 @@ export default function goalExtension(pi: ExtensionAPI) {
 				const g = archiveGoal(threadId, reason);
 				if (!g) {
 					ctx.ui.notify("No goal to clear.", "info");
+					return;
+				}
+				// archiveGoal leaves terminal goals untouched, so do not claim otherwise.
+				if (g.status !== "abandoned") {
+					ctx.ui.notify(`Goal is already ${g.status}; nothing to clear.`, "info");
 					return;
 				}
 				ctx.ui.notify("Goal cleared (abandoned).", "info");
@@ -185,11 +228,28 @@ export default function goalExtension(pi: ExtensionAPI) {
 	// Goal continuation is intentionally driven by agent_settled: after each
 	// completed model run, an active goal receives one next-turn prompt. A
 	// per-thread guard makes this idempotent for a single idle boundary.
+	//
+	// Budgets are charged here, before the next prompt is queued: this is the
+	// only place that knows a continuation turn actually completed. Exhausting a
+	// budget parks the goal as paused, so the loop stops without losing the
+	// objective.
 	pi.on("agent_settled", async (_event, ctx) => {
 		const threadId = threadIdFor(ctx);
 		const goal = loadGoal(threadId);
 		if (!shouldQueueGoalContinuation(goal, queuedContinuations.has(threadId))) return;
+
+		const madeProgress = (turnToolCalls.get(threadId) ?? 0) > 0;
+		turnToolCalls.set(threadId, 0);
+		const erroredReason = turnErrors.get(threadId);
+		turnErrors.delete(threadId);
+		const outcome = recordContinuationTurn(threadId, { madeProgress, erroredReason });
+		if (!outcome) return;
+		if (outcome.kind === "paused") {
+			ctx.ui.notify(outcome.reason, erroredReason ? "warning" : "info");
+			return;
+		}
+
 		queuedContinuations.add(threadId);
-		pi.sendUserMessage(continuationPrompt(goal), { deliverAs: "followUp" });
+		pi.sendUserMessage(continuationPrompt(outcome.goal), { deliverAs: "followUp" });
 	});
 }

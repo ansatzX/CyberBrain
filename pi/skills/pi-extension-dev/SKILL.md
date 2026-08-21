@@ -41,7 +41,7 @@ pi.registerCommand("deploy", {
 ## 命令能做什么（常用能力）
 
 | 能力 | 写法 | 说明 |
-|---|---|---|
+| --- | --- | --- |
 | 通知 | `ctx.ui.notify(msg, "info"\|"warning"\|"error")` | 无 UI 模式（print）下可能无输出 |
 | 选择框 | `await ctx.ui.select(title, string[])` | 返回选中项或 `undefined`（取消） |
 | 确认框 | `await ctx.ui.confirm(title, message)` | 返回 boolean |
@@ -59,7 +59,7 @@ pi.registerCommand("deploy", {
 ## 常用事件钩子
 
 | 事件 | 时机 | 典型用途 |
-|---|---|---|
+| --- | --- | --- |
 | `session_start` | 会话启动/resume | 恢复状态、初始化 |
 | `before_agent_start` | 每轮 turn 前 | **注入上下文**（返回 `{ systemPrompt }` 或 `{ message }`），如 goal 状态 |
 | `tool_call` | 工具调用前 | **拦截**（返回 `{ block: true, reason }`），如危险命令权限门 |
@@ -102,9 +102,11 @@ pi.registerCommand("deploy", {
 - 命名空间约定：自定义 slash 一律 `/<ns>:<name>`（如 `/ansatz:review`、`/skill:tdd` 是 pi 内置格式）；pi 命令解析按空格分割取命令名，冒号原样支持
 - 样板：`Cyberbrain/pi/slashes/python.md`（Python agent，Google style + current docs + what/why；context7 仅在可用时使用）
 - **goal 系统 v2**（对齐 codex `ext/goal/` 架构）：`extensions/goal.ts`（命令/工具/事件壳）+ `lib/goal-core.ts`（纯逻辑可单测：存储/状态机/校验/注入文本）。模型只能通过 `get_goal`/`create_goal`/`update_goal` 工具交互（update 仅 complete 须理由 / blocked 须同一条件在至少 3 个不同 turn 被显式报告）。`set`/`resume` 启动首轮；active goal 在 `agent_settled` 后自动 follow-up。每个 session 的同一 idle boundary 只能排入一条 continuation，且 complete/blocked/pause/clear 必须停止，避免重入式无限续跑。
+- **goal 状态机的四条不变式**（均有变异验证过的回归测试固定）：① `blocked` 是**可恢复的停滞报告而非结果**——`resume` 同时接受 `paused` 与 `blocked` 并重置整个 blocked 审计（streak/condition/turn_id/status_reason），使外部阻塞解除后无需 `clear` 丢弃 objective；`complete`/`abandoned` 仍为真终态不可复活。② 所有 read-modify-write 变更走 `withGoalLock`（`mkdir` 互斥 + 10s 废锁回收）——blocked 审计是“恰好三次”计数，无锁时多进程交叠会丢更新并静默移动终态门槛。③ blocked 审计按**语义相似而非字面相等**匹配（`isSameBlockedCondition`，重叠系数 ≥ 0.3，CJK 降级为字符 bigram）——旧的精确比对下模型换个说法 streak 就归零，三轮刹车实测永不生效。④ 续跑受**三预算**约束（`recordContinuationTurn`）：轮数预算 + 空转预算，耗尽后自动转 `paused`（非终态，`resume` 重新授予预算）；空转判定看该轮是否调用过非自报告工具，因为 `agent_settled` 本身区分不了“干了活”与“只复述状态”。另有**错误预算**：Pi 只在重试与自动压缩耗尽后才 `agent_settled`，所以 settled 的错误已是该轮终态，连续报错会在坏状态上循环烧 token（对照 codex `ext/goal/src/extension.rs:293-300` 的同类判断）；`agent_settled` 不带 payload，故错误从 `agent_end` 的 `stopReason==='error'` 捕获，`aborted`（用户 Esc）不计入，一个干净 turn 即清零。默认 10/3/2 轮，由 `CYBERBRAIN_GOAL_TURN_BUDGET` / `CYBERBRAIN_GOAL_IDLE_BUDGET` / `CYBERBRAIN_GOAL_ERROR_BUDGET` 调整或关闭。
 - **环境事实（实测）**：① `extensions/` 下**所有 .ts 都被当扩展加载**——辅助模块必须放 `~/.pi/agent/lib/`；② 同一扩展被双加载（自动 + `-e`）时命令名变 `:1/:2` 导致原命令失效——测试用 `-ne -e`；③ print 模式每次 session 文件不同（threadId 漂移）——测试用 `--session <固定路径>`；④ `registerTool` 的 `parameters` 必须是合法 JSON Schema（`{ type: "object", properties: {} }`，不能是空 `{}`）
 
 ## 完整示例
+
 [examples/namespaced-command.ts](examples/namespaced-command.ts) 是最小可复制样板。完整实战参考：`Cyberbrain/pi/extensions/slash-framework.ts`、`goal.ts` 与 `utility-commands.ts`。
 
 ## 参考文档

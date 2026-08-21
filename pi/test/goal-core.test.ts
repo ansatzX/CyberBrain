@@ -1,10 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import goalExtension, { goalSetObjective, shouldQueueGoalContinuation } from "../extensions/goal.ts";
-import { goalFilePath, getSessionThreadId, loadGoal, saveGoal, createGoal, archiveGoal, updateGoalStatus, registerBlockedOccurrence, objectiveUpdatedPrompt, continuationPrompt, toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue, pauseGoal, resumeGoal, type GoalState } from "../lib/goal-core.ts";
+import { goalFilePath, getSessionThreadId, loadGoal, saveGoal, createGoal, archiveGoal, updateGoalStatus, registerBlockedOccurrence, objectiveUpdatedPrompt, continuationPrompt, toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue, pauseGoal, resumeGoal, isSameBlockedCondition, DEFAULT_TURN_BUDGET, DEFAULT_IDLE_BUDGET, DEFAULT_ERROR_BUDGET, type GoalState } from "../lib/goal-core.ts";
 
 // 用环境变量覆盖存储目录，避免污染真实 ~/.pi/agent/goals
 process.env.PI_GOAL_TEST_DIR = mkdtempSync(join(tmpdir(), "goal-test-"));
@@ -38,11 +39,26 @@ test("saveGoal 以 JSON 可逆保存任意字符串", () => {
 		thread_id: "thread-2", goal_id: "g-2", objective: "多行\n目标: \\n literal",
 		status: "blocked", created_at: "2026-08-03T00:00:00Z", updated_at: "2026-08-03T01:00:00Z",
 		blocked_streak: 2, blocked_condition: "网络:\n不可用", last_blocked_turn_id: "turn-2", status_reason: null,
+		turn_count: 4, idle_streak: 1, error_streak: 2,
 	};
 	saveGoal(g);
 	const loaded = loadGoal("thread-2");
 	assert.deepEqual(loaded, g);
 	assert.match(readFileSync(goalFilePath("thread-2"), "utf8"), /^\{/);
+});
+
+// 旧 goal 文件没有预算字段，加入预算后必须仍能加载——否则升级会静默丢失在跑的目标。
+test("旧 goal 文件缺少预算字段仍可加载并回填", () => {
+	const legacy = {
+		thread_id: "thread-legacy-budget", goal_id: "g-legacy", objective: "旧目标",
+		status: "active", created_at: "2026-08-03T00:00:00Z", updated_at: "2026-08-03T00:00:00Z",
+		blocked_streak: 0, blocked_condition: null, last_blocked_turn_id: null, status_reason: null,
+	};
+	writeFileSync(goalFilePath("thread-legacy-budget"), `${JSON.stringify(legacy, null, 2)}\n`);
+	const loaded = loadGoal("thread-legacy-budget");
+	assert.equal(loaded?.objective, "旧目标", "旧文件不得被当作非法状态丢弃");
+	assert.equal(loaded?.turn_count, 0);
+	assert.equal(loaded?.idle_streak, 0);
 });
 
 test("loadGoal 自动迁移旧 md 状态到 JSON", () => {
@@ -319,10 +335,48 @@ test("resumeGoal paused → active 且 streak 重置", () => {
 	}
 });
 
-test("resumeGoal 非 paused 拒绝", () => {
+test("resumeGoal 非 paused/blocked 拒绝", () => {
 	const r = resumeGoal("thread-p1"); // 已 active
 	assert.equal(r.ok, false);
-	if (!r.ok) assert.match(r.error, /Only paused goals/);
+	if (!r.ok) assert.match(r.error, /Only paused or blocked goals/);
+});
+
+// blocked 是可恢复的停滞报告，不是结果。外部阻塞解除后必须能直接 resume，
+// 否则用户只能 `clear` 丢掉整个 objective、历史与 goal_id 重建。
+test("resumeGoal blocked → active 并重置 blocked 审计", () => {
+	const thread = "thread-blocked-resume";
+	createGoal(thread, "可恢复目标");
+	for (const turn of ["t1", "t2", "t3"]) updateGoalStatus(thread, "blocked", "等待外部审批", turn);
+	assert.equal(loadGoal(thread)?.status, "blocked");
+
+	const r = resumeGoal(thread);
+	assert.equal(r.ok, true);
+	if (r.ok) {
+		assert.equal(r.goal.status, "active");
+		assert.equal(r.goal.objective, "可恢复目标", "objective 必须完整保留");
+		// 下一次停滞必须重新积满三轮证据，不能继承已满足的 streak。
+		assert.equal(r.goal.blocked_streak, 0);
+		assert.equal(r.goal.blocked_condition, null);
+		assert.equal(r.goal.last_blocked_turn_id, null);
+		assert.equal(r.goal.status_reason, null, "遗留的 blocked 理由不得冒充恢复后的状态说明");
+		assert.equal(shouldContinue(r.goal), true, "恢复后必须重新参与续跑");
+	}
+
+	// 恢复后再次报阻必须从 1/3 重新计数。
+	const retry = updateGoalStatus(thread, "blocked", "等待外部审批", "t4");
+	assert.equal(retry.ok, false);
+	if (!retry.ok) assert.match(retry.error, /1\/3/);
+});
+
+test("resumeGoal 拒绝终态 goal", () => {
+	const thread = "thread-terminal-resume";
+	createGoal(thread, "终态目标");
+	updateGoalStatus(thread, "complete", "已完成", "t1");
+	const r = resumeGoal(thread);
+	assert.equal(r.ok, false, "complete 是真终态，不得被 resume 复活");
+
+	archiveGoal(thread, "丢弃");
+	assert.equal(resumeGoal(thread).ok, false, "abandoned 同样不得复活");
 });
 
 test("pause 后 createGoal 拒绝（非终态）", () => {
@@ -330,5 +384,378 @@ test("pause 后 createGoal 拒绝（非终态）", () => {
 	assert.throws(() => createGoal("thread-p1", "新目标"));
 });
 
+// —— 自动刹车：续跑本身无上限，预算是无人值守时的唯一兑底。
+// 用真实事件序列驱动扩展（agent_start → tool_call* → agent_settled），
+// 而非直接调 recordContinuationTurn，否则测不到接线是否真的接上了。
+function budgetHarness(sessionFile: string) {
+	const handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<unknown>>();
+	let sent = 0;
+	goalExtension({
+		on(event: string, handler: (event: unknown, ctx: unknown) => Promise<unknown>) {
+			handlers.set(event, handler);
+		},
+		registerCommand() {},
+		registerTool() {},
+		sendUserMessage() {
+			sent += 1;
+		},
+	} as never);
+	const ctx = { sessionManager: { getSessionFile: () => sessionFile }, ui: { notify() {} } };
+	return {
+		get sent() {
+			return sent;
+		},
+		async turn(
+			toolNames: string[] = [],
+			options: { isError?: boolean; command?: string; stopReason?: string; errorMessage?: string } = {},
+		) {
+			await handlers.get("agent_start")?.({}, ctx);
+			for (const toolName of toolNames) {
+				await handlers.get("tool_result")?.(
+					{
+						toolName,
+						input: options.command === undefined ? {} : { command: options.command },
+						isError: options.isError ?? false,
+					},
+					ctx,
+				);
+			}
+			await handlers.get("agent_end")?.(
+				{ messages: [{ stopReason: options.stopReason ?? "stop", errorMessage: options.errorMessage }] },
+				ctx,
+			);
+			await handlers.get("agent_settled")?.({}, ctx);
+		},
+	};
+}
+
+test("轮数预算耗尽后自动 pause而非无限续跑", async () => {
+	const sessionFile = "/tmp/goal-budget-turns.jsonl";
+	const thread = getSessionThreadId(sessionFile);
+	const harness = budgetHarness(sessionFile);
+	createGoal(thread, "永不自证完成的目标");
+
+	// 模型每轮都在干活（真实写入），但从不调 update_goal——最常见的跑飞形态。
+	for (let index = 0; index < 50; index += 1) await harness.turn(["write"]);
+
+	const goal = loadGoal(thread);
+	assert.equal(goal?.status, "paused", "超预算必须停下来");
+	assert.equal(goal?.turn_count, DEFAULT_TURN_BUDGET);
+	assert.match(goal?.status_reason ?? "", /turn budget/);
+	assert.ok(harness.sent < 50, `不得无限续跑（实发${harness.sent}条）`);
+	// paused 不是终态：objective 与历史必须完整，resume 后重新获得预算。
+	assert.equal(goal?.objective, "永不自证完成的目标");
+	const resumed = resumeGoal(thread);
+	assert.equal(resumed.ok, true);
+	if (resumed.ok) assert.equal(resumed.goal.turn_count, 0, "resume 必须重置计数，否则下一轮立即再次跳闸");
+});
+
+test("空转预算捕捉无进展的自我审计循环", async () => {
+	const previous = process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+	// 抬高轮数预算，否则它会先触发，空转检测就测不到。
+	process.env.CYBERBRAIN_GOAL_TURN_BUDGET = "50";
+	try {
+		const sessionFile = "/tmp/goal-budget-idle.jsonl";
+		const thread = getSessionThreadId(sessionFile);
+		const harness = budgetHarness(sessionFile);
+		createGoal(thread, "空转目标");
+
+		for (let index = 0; index < 20; index += 1) await harness.turn([]);
+
+		const goal = loadGoal(thread);
+		assert.equal(goal?.status, "paused");
+		assert.equal(goal?.idle_streak, DEFAULT_IDLE_BUDGET);
+		assert.match(goal?.status_reason ?? "", /no observable progress/);
+	} finally {
+		if (previous === undefined) delete process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+		else process.env.CYBERBRAIN_GOAL_TURN_BUDGET = previous;
+	}
+});
+
+test("干活的目标不被空转预算误伤，自报告工具不算进展", async () => {
+	const previous = process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+	process.env.CYBERBRAIN_GOAL_TURN_BUDGET = "50";
+	try {
+		const working = "/tmp/goal-budget-working.jsonl";
+		const workingThread = getSessionThreadId(working);
+		const workingHarness = budgetHarness(working);
+		createGoal(workingThread, "持续干活");
+		// 干活与空转交替：任何一轮真干活都应重置空转计数。
+		for (const count of [3, 3, 0, 0, 5, 0, 0]) {
+			await workingHarness.turn(Array.from({ length: count }, () => "write"));
+		}
+		assert.equal(loadGoal(workingThread)?.status, "active", "真在干活的目标不得被停掉");
+
+		// 只查自己不算干活，否则空转预算永远无法触发。
+		const selfOnly = "/tmp/goal-budget-self.jsonl";
+		const selfThread = getSessionThreadId(selfOnly);
+		const selfHarness = budgetHarness(selfOnly);
+		createGoal(selfThread, "只审计自己");
+		for (let index = 0; index < 10; index += 1) await selfHarness.turn(["get_goal"]);
+		assert.equal(loadGoal(selfThread)?.status, "paused", "只调 get_goal 必须仍计为空转");
+	} finally {
+		if (previous === undefined) delete process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+		else process.env.CYBERBRAIN_GOAL_TURN_BUDGET = previous;
+	}
+});
+
+// —— blocked 审计：措辞漂移曾使三轮刹车永不生效。
+// —— 错误刹车：Pi 只在重试与自动压缩耗尽后才 settle，
+// 所以 settled 的错误已是该轮的终态；继续续跑只会在坏状态上循环烧 token。
+// 对照 codex-rs/ext/goal/src/extension.rs:293-300 的同类判断。
+test("连续错误 turn 耗尽错误预算后自动 pause", async () => {
+	const previous = process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+	process.env.CYBERBRAIN_GOAL_TURN_BUDGET = "50";
+	try {
+		const sessionFile = "/tmp/goal-error-streak.jsonl";
+		const thread = getSessionThreadId(sessionFile);
+		const harness = budgetHarness(sessionFile);
+		createGoal(thread, "会报错的目标");
+
+		for (let index = 0; index < 5; index += 1) {
+			await harness.turn([], { stopReason: "error", errorMessage: "context length exceeded" });
+		}
+
+		const goal = loadGoal(thread);
+		assert.equal(goal?.status, "paused", "连续错误必须停下来，不得无限重试");
+		assert.equal(goal?.error_streak, DEFAULT_ERROR_BUDGET);
+		assert.match(goal?.status_reason ?? "", /consecutive errored turns/);
+		// 错误原文必须保留，否则 resume 的人不知道该修什么。
+		assert.match(goal?.status_reason ?? "", /context length exceeded/);
+		// 错误诊断优先于“无进展”：错误 turn 同样没有干活，不能被报成空转。
+		assert.doesNotMatch(goal?.status_reason ?? "", /no observable progress/);
+	} finally {
+		if (previous === undefined) delete process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+		else process.env.CYBERBRAIN_GOAL_TURN_BUDGET = previous;
+	}
+});
+
+test("成功 turn 重置错误计数，偶发错误不停目标", async () => {
+	const previous = process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+	process.env.CYBERBRAIN_GOAL_TURN_BUDGET = "50";
+	try {
+		const sessionFile = "/tmp/goal-error-transient.jsonl";
+		const thread = getSessionThreadId(sessionFile);
+		const harness = budgetHarness(sessionFile);
+		createGoal(thread, "偶发错误的目标");
+
+		// 错误与成功交替：单次瞬时错误值得一次重试，不该终止长任务。
+		for (const stopReason of ["error", "stop", "error", "stop", "error", "stop"]) {
+			await harness.turn(["write"], {
+				stopReason,
+				errorMessage: stopReason === "error" ? "transient provider blip" : undefined,
+			});
+		}
+
+		const goal = loadGoal(thread);
+		assert.equal(goal?.status, "active", "偶发错误不得停掉正在推进的目标");
+		assert.equal(goal?.error_streak, 0, "一个干净 turn 必须清零错误计数");
+	} finally {
+		if (previous === undefined) delete process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+		else process.env.CYBERBRAIN_GOAL_TURN_BUDGET = previous;
+	}
+});
+
+test("aborted 是用户中断，不计作错误", async () => {
+	const previous = process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+	process.env.CYBERBRAIN_GOAL_TURN_BUDGET = "50";
+	try {
+		const sessionFile = "/tmp/goal-error-aborted.jsonl";
+		const thread = getSessionThreadId(sessionFile);
+		const harness = budgetHarness(sessionFile);
+		createGoal(thread, "被中断的目标");
+
+		for (let index = 0; index < 4; index += 1) {
+			await harness.turn(["write"], { stopReason: "aborted" });
+		}
+
+		const goal = loadGoal(thread);
+		assert.equal(goal?.error_streak, 0, "Esc 中断不是坏状态，不得触发错误刹车");
+		assert.equal(goal?.status, "active");
+	} finally {
+		if (previous === undefined) delete process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
+		else process.env.CYBERBRAIN_GOAL_TURN_BUDGET = previous;
+	}
+});
+
+test("同一阻塞的不同措辞仍能累积到三轮", () => {
+	const thread = "thread-blocked-paraphrase";
+	createGoal(thread, "目标");
+	const phrasings = ["等待 API 上线", "还在等 API", "API 仍未就绪"];
+	phrasings.forEach((phrase, index) => {
+		updateGoalStatus(thread, "blocked", phrase, `turn-${index}`);
+	});
+	assert.equal(loadGoal(thread)?.status, "blocked", "换着说法描述同一阻塞不得逃逸审计");
+	assert.equal(loadGoal(thread)?.blocked_condition, "等待 API 上线", "应保留首次措辞");
+});
+
+test("不同阻塞各自重新举证", () => {
+	const thread = "thread-blocked-distinct";
+	createGoal(thread, "目标");
+	["等待 API 上线", "磁盘空间不足", "需要人工审批"].forEach((phrase, index) => {
+		updateGoalStatus(thread, "blocked", phrase, `turn-${index}`);
+	});
+	const goal = loadGoal(thread);
+	assert.equal(goal?.status, "active", "三个不同阻塞不得凑满一次审计");
+	assert.equal(goal?.blocked_streak, 1);
+});
+
+test("isSameBlockedCondition 区分重述与不同阻塞", () => {
+	for (const [left, right] of [
+		["等待 API 上线", "还在等 API"],
+		["等待 API 上线", "API 仍未就绪"],
+		["waiting for the API", "API still not live"],
+		["waiting for review", "still waiting for review"],
+	] as Array<[string, string]>) {
+		assert.equal(isSameBlockedCondition(left, right), true, `${left} ≈ ${right}`);
+	}
+	for (const [left, right] of [
+		["等待 API 上线", "磁盘空间不足"],
+		["需要人工审批", "磁盘空间不足"],
+		["waiting for the API", "disk is full"],
+	] as Array<[string, string]>) {
+		assert.equal(isSameBlockedCondition(left, right), false, `${left} ≠ ${right}`);
+	}
+});
+
 // 清理测试目录
 rmSync(process.env.PI_GOAL_TEST_DIR as string, { recursive: true, force: true });
+
+// —— 跨进程并发：blocked 审计是 read-modify-write，无锁时会丢更新。
+// 阀值是“恰好三次”，一次丢失就会静默移动终态门槛，故用真实多进程验证。
+const goalCoreUrl = new URL("../lib/goal-core.ts", import.meta.url).href;
+
+function runNode(source: string, directory: string): string {
+	return execFileSync(process.execPath, ["--input-type=module", "-e", source], {
+		env: { ...process.env, PI_GOAL_TEST_DIR: directory },
+		encoding: "utf8",
+	}).trim();
+}
+
+test("并发进程下 blocked 计数不丢更新", async () => {
+	const directory = mkdtempSync(join(tmpdir(), "goal-lock-"));
+	try {
+		runNode(`const m = await import(${JSON.stringify(goalCoreUrl)}); m.createGoal("shared", "目标");`, directory);
+
+		const writerCount = 5;
+		// 必须并行派发：execFileSync 会逐个阻塞等待子进程退出，
+		// 那样 load/save 窗口永不交叠，本测试会因为“从未真正并发”而假通过。
+		await Promise.all(
+			Array.from({ length: writerCount }, (_unused, index) => {
+				const source = `import(${JSON.stringify(goalCoreUrl)}).then((m) => m.registerBlockedOccurrence("shared", "turn-${index}", "同一原因"));`;
+				return new Promise<void>((resolve, reject) => {
+					const child = spawn(process.execPath, ["--input-type=module", "-e", source], {
+						env: { ...process.env, PI_GOAL_TEST_DIR: directory },
+						stdio: "ignore",
+					});
+					child.on("error", reject);
+					child.on("exit", (code) =>
+						code === 0 ? resolve() : reject(new Error(`writer ${index} exited with ${code}`)),
+					);
+				});
+			}),
+		);
+
+		const streak = runNode(
+			`const m = await import(${JSON.stringify(goalCoreUrl)}); process.stdout.write(String(m.loadGoal("shared").blocked_streak));`,
+			directory,
+		);
+		assert.equal(streak, String(writerCount), "每个不同 turn 的报阻都必须被计入");
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+// clear 是用户显式动作，但不得因此重写已经结束的目标：
+// 把 complete 改成 abandoned 会销毁完成理由，并把已交付的目标误报为放弃。
+test("archiveGoal 不得改写终态 goal", () => {
+	const thread = "thread-archive-terminal";
+	createGoal(thread, "已完成目标");
+	updateGoalStatus(thread, "complete", "顺利做完", "t1");
+	const before = loadGoal(thread);
+
+	const returned = archiveGoal(thread, "随手清理");
+	const after = loadGoal(thread);
+	assert.equal(after?.status, "complete", "complete 必须保持不变");
+	assert.equal(after?.status_reason, "顺利做完", "完成理由不得被 clear 理由覆盖");
+	assert.equal(after?.updated_at, before?.updated_at, "no-op 不得扰动时间戳");
+	assert.notEqual(returned, null, "目标仍存在，不应返回 null");
+
+	// abandoned 同样是终态：重复 clear 不得刷新理由。
+	const second = "thread-archive-twice";
+	createGoal(second, "放弃目标");
+	archiveGoal(second, "第一次放弃");
+	archiveGoal(second, "第二次放弃");
+	assert.equal(loadGoal(second)?.status_reason, "第一次放弃");
+});
+
+test("archiveGoal 仍可清理未完成的 goal", () => {
+	for (const [thread, prepare] of [
+		["thread-clear-active", () => undefined],
+		["thread-clear-paused", (id: string) => pauseGoal(id)],
+	] as Array<[string, (id: string) => unknown]>) {
+		createGoal(thread, "未完成目标");
+		prepare(thread);
+		archiveGoal(thread, "不要了");
+		assert.equal(loadGoal(thread)?.status, "abandoned", thread);
+	}
+});
+
+// 锁的等待必须是真睡眠而非忙等。忙等版本在等锁期间会满占一核（实测
+// user ≈ wall），Atomics.wait 则把线程挂起在内核（实测 user 远小于 wall）。
+// 断言 CPU 时间而非实现细节，因为前者才是真正要保障的性质。
+test("等锁期间不得忙等烧 CPU", () => {
+	const directory = mkdtempSync(join(tmpdir(), "goal-cpu-"));
+	try {
+		runNode(`const m = await import(${JSON.stringify(goalCoreUrl)}); m.createGoal("t", "目标");`, directory);
+		const lockPath = `${runNode(
+			`const m = await import(${JSON.stringify(goalCoreUrl)}); process.stdout.write(m.goalFilePath("t"));`,
+			directory,
+		)}.lock`;
+
+		// 占住一把“新鲜”锁（未达到 10s 废锁阈值），逼迫写入者真正等待。
+		mkdirSync(lockPath, { recursive: true });
+		const holdMs = 1_000;
+		const release = setTimeout(() => rmSync(lockPath, { recursive: true, force: true }), holdMs);
+
+		const started = process.hrtime.bigint();
+		const cpu = runNode(
+			`const m = await import(${JSON.stringify(goalCoreUrl)});
+			m.registerBlockedOccurrence("t", "turn-1", "原因");
+			const u = process.cpuUsage();
+			process.stdout.write(String(u.user + u.system));`,
+			directory,
+		);
+		clearTimeout(release);
+		const wallMs = Number(process.hrtime.bigint() - started) / 1e6;
+		const cpuMs = Number(cpu) / 1000;
+
+		assert.ok(wallMs >= holdMs * 0.8, `写入者应确实等过锁（wall=${wallMs.toFixed(0)}ms）`);
+		// 忙等会使 cpu 逼近 wall；留出 Node 启动开销的余量。
+		assert.ok(
+			cpuMs < wallMs * 0.6,
+			`等锁不得忙等：cpu=${cpuMs.toFixed(0)}ms wall=${wallMs.toFixed(0)}ms`,
+		);
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
+
+test("陈旧锁不会永久阻塞后续写入", () => {
+	const directory = mkdtempSync(join(tmpdir(), "goal-stale-"));
+	try {
+		process.env.PI_GOAL_TEST_DIR = directory;
+		createGoal("t", "目标");
+		// 模拟崩溃进程遗留的锁：无人能释放它，超时后必须被当作废锁回收。
+		const lockPath = `${goalFilePath("t")}.lock`;
+		mkdirSync(lockPath, { recursive: true });
+		const longAgo = new Date(Date.now() - 60_000);
+		utimesSync(lockPath, longAgo, longAgo);
+
+		registerBlockedOccurrence("t", "turn-1", "原因");
+		assert.equal(loadGoal("t")?.blocked_streak, 1, "陈旧锁必须被回收，写入不得被永久丢弃");
+		assert.equal(existsSync(lockPath), false, "正常退出后不得残留锁目录");
+	} finally {
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
