@@ -5,10 +5,14 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import {
 	installDeepSeekWebSearch,
+	refreshDeepSeekResponsesModelsJson,
 	registerDeepSeekResponses,
 } from "../lib/third-party/deepseek-responses.ts";
 
-export default function deepSeekResponsesExtension(pi: ExtensionAPI): void {
+export default async function deepSeekResponsesExtension(pi: ExtensionAPI): Promise<void> {
+	// Registration first and synchronously: the provider must be usable even if
+	// the models.json mirror below fails or is disabled.
 	registerDeepSeekResponses(pi);
 	installDeepSeekWebSearch(pi);
+	await refreshDeepSeekResponsesModelsJson();
 }
