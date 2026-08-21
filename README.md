@@ -16,7 +16,7 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 ## Active Plugins
 
 | Plugin | Contents | Status |
-|--------|----------|--------|
+| -------- | ---------- | -------- |
 | `awesome-agent-select` | Host-neutral prompted roles rendered for Codex and Pi: review, QA, API docs, performance, tooling, TypeScript work, and tachikoma delegation | Published |
 | `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code, and Pi | Published |
 | `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
@@ -79,29 +79,62 @@ bash tools/cleanup-agent-symlinks.sh
 
 ## Pi Installation
 
-Clone the repository, install the `pi-subagents` Pi package, then run the managed installer:
+Clone the repository, install the `pi-subagents` and `pi-lens` Pi packages, then run the managed installer:
 
 ```bash
 mkdir -p ~/soft
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
 cd ~/soft/CyberBrain
-pi install npm:pi-subagents@0.40.0
+pi install npm:pi-subagents
+pi install npm:pi-lens
 bash tools/manage-pi.sh install
 bash tools/manage-pi.sh doctor
 ```
 
 The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. Its `pick-model` skill picks model and thinking level per delegated launch (parent-model inheritance unless an approved model policy exists), and `agent-cluster` drives multi-agent launch, supervision, and fan-in; neither persists model choices on its own. See [INSTALL.md](INSTALL.md) for the full install, update, and uninstall guide.
 
+### Long-running goals (`/ansatz:goal`)
+
+`/ansatz:goal set <objective>` pins an objective that survives across turns: after each settled agent run, an active goal queues one follow-up turn automatically, so a long task keeps moving without re-prompting. The model interacts only through `get_goal` / `create_goal` / `update_goal`; `update_goal` accepts `complete` (with a reason) or `blocked` (only after the same obstruction is reported in at least three distinct turns, matched semantically so re-wording the same blocker still accumulates).
+
+Unattended continuation is bounded by three independent budgets (`pi/lib/goal-core.ts`). Exhausting any of them parks the goal as `paused` — never a terminal state — so the objective, history, and `goal_id` survive and `/ansatz:goal resume` grants a fresh budget:
+
+| Budget | Default | Env | Catches |
+| -------- | --------- | ----- | --------- |
+| Turn | 10 | `CYBERBRAIN_GOAL_TURN_BUDGET` | a model that never marks the goal complete |
+| Idle | 3 | `CYBERBRAIN_GOAL_IDLE_BUDGET` | turns that only inspect state instead of acting |
+| Error | 2 | `CYBERBRAIN_GOAL_ERROR_BUDGET` | looping on a broken state after retries are exhausted |
+
+Progress is judged on tool *results*: read-only tools, failed calls, and the goal tools themselves never count as progress, and a `bash` call is classified by inspecting its command. Errors are read from the settled run's `stopReason`, so a user-pressed Esc (`aborted`) is not treated as a failure. Set any budget to `off` or `0` to disable it. `blocked` is a recoverable stall report, not an outcome — `resume` accepts it and resets the audit.
+
+### models.json refresh
+
+Providers register in-process via `pi.registerProvider`, which only affects the current pi process — consumers that read `models.json` directly (e.g. the Raft daemon's model detection) never see them. To fix that, every pi startup also refreshes both provider sections of `models.json` (`pi/lib/third-party/models-json.ts`):
+
+- Refuses to touch an unparseable `models.json`; only ever rewrites its own provider section, preserving all other keys.
+- Skips the write entirely when nothing changed; otherwise writes atomically (temp file + rename), round-trip-validates the JSON before and after writing, and snapshots the previous file to `models.json.bak` for rollback.
+- Refresh failures only warn — the in-process provider registration is never blocked, and for `deepseek-responses` the refresh is deliberately kept out of the synchronous registration path so disk I/O can never delay or break it.
+
+| Provider | Path override | Kill switch |
+| ---------- | --------------- | ------------- |
+| `aihubmix` | `AIHUBMIX_MODELS_JSON_PATH` | `AIHUBMIX_MODELS_JSON_REFRESH=off` |
+| `deepseek-responses` | `CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH` | `CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH=off` |
+
+Both default to `$PI_CODING_AGENT_DIR/models.json`, falling back to `~/.pi/agent/models.json`.
+
+The `aihubmix` catalog is written grouped by vendor, newest version first within each group. Upstream reports every model with the same `created` constant, so the version embedded in the id is the only usable release signal; date stamps (`o1-2024-12-17`) and parameter counts (`gpt-oss-120b`) are deliberately excluded from that comparison.
+
 ### Pi Package Contents
 
 | Resource | Source | What you get |
-|----------|--------|--------------|
-| Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:python`) |
-| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery) and `deepseek-responses/deepseek-v4-flash` / `deepseek-v4-pro` (1M context; flash exposes low/high/max, pro exposes high/max) |
+| ---------- | -------- | -------------- |
+| Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals with budgeted auto-continuation, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:python`) |
+| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery) and `deepseek-responses/deepseek-v4-flash` / `deepseek-v4-flash-vision-exp` / `deepseek-v4-pro` (1M context; flash exposes low/high/max, pro exposes high/max) |
 | Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
 | Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
 | Subagents | `pi/subagents/` | generated `cyberbrain.<role>` agents from `awesome-agent-select` profiles, e.g. `/run cyberbrain.code-reviewer` |
-| Dependency | npm `pi-subagents` | subagent delegation engine (chains, parallel fanout, async supervision), installed separately as a Pi package (`pi install npm:pi-subagents@0.40.0`) |
+| Dependency | npm `pi-subagents` | subagent delegation engine (chains, parallel fanout, async supervision), installed separately as a Pi package (`pi install npm:pi-subagents`) |
+| Dependency | npm `pi-lens` | real-time code feedback (LSP, linters, formatters, type-checking), installed separately as a Pi package (`pi install npm:pi-lens`) |
 
 ## Plugin Layout
 
@@ -189,7 +222,7 @@ Included agents:
 In Codex, the supported installation path is an explicit installer that copies `agents/*.toml` into `~/.codex/agents/` and writes a local manifest.
 
 | File | Format | Consumer |
-|------|--------|----------|
+| ------ | -------- | ---------- |
 | `agent-profiles/*.md` | description paragraph followed by role instructions; no frontmatter | Canonical source |
 | `agents/*.toml` | `name` + `description` + `developer_instructions` | Codex (generated) |
 | `pi/subagents/awesome-agent-select/*.md` | Pi subagent frontmatter plus role instructions | Pi (generated) |
