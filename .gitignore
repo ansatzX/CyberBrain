@@ -1,5 +1,6 @@
 *.claude
-docs/
+# 只忽略仓库根的维护者本地文档；skill 内的 docs/ 需要随包分发。
+/docs/
 .worktrees/
 .tachikoma/
 .local_read_mcp/

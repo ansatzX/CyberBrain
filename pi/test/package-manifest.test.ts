@@ -34,12 +34,21 @@ test("pi-extension-dev is packaged with valid relative references", () => {
 	assert.equal(existsSync(skillRoot), true, "pi-extension-dev must be packaged");
 	const skill = readFileSync(resolve(skillRoot, "SKILL.md"), "utf8");
 	assert.match(skill, /^---\nname: pi-extension-dev/m);
-	// docs/ 是维护者本地参考文档，不出库（.gitignore 的 docs/ 规则）；
-	// 只断言随包分发、新克隆上真实存在的引用。
+	// 随包分发的引用必须在新 clone 上真实存在。
+	// 历史上 .gitignore 的裸 `docs/` 规则曾误伤 skill 内的 docs/，
+	// 导致 SKILL.md 带着 4 个死链发布；现已改为仅忽略根目录 `/docs/`。
 	for (const file of [
 		"examples/namespaced-command.ts",
+		"docs/api-reference.md",
+		"docs/events.md",
+		"docs/pitfalls.md",
+		"docs/verification.md",
 	]) {
 		assert.equal(existsSync(resolve(skillRoot, file)), true, file);
+	}
+	// SKILL.md 里每一条 docs/ 相对链接都必须能落地。
+	for (const [, target] of skill.matchAll(/\]\((docs\/[^)]+)\)/g)) {
+		assert.equal(existsSync(resolve(skillRoot, target)), true, `SKILL.md 链接指向不存在的 ${target}`);
 	}
 });
 
