@@ -4,7 +4,7 @@ Use this protocol before invoking any external coding-agent CLI from a Tachikoma
 
 ## 1. Discover the installed contract
 
-Before constructing a command, run these read-only checks:
+Before the first use of an executable or an unfamiliar subcommand, inspect:
 
 ```text
 <cli> --version
@@ -12,7 +12,12 @@ Before constructing a command, run these read-only checks:
 <cli> <subcommand> --help       # when a subcommand will be used
 ```
 
-Use only flags, permission modes, model options, and resume syntax shown by that installed version. A skill example is illustrative; current CLI help is authoritative.
+Use only flags, permission modes, model options and resume syntax supported by
+that installed version. Reuse this evidence in the same session when executable
+identity/version and relevant configuration are unchanged; do not rerun help on
+every round. Recheck after an upgrade, PATH/target-environment change, unfamiliar
+subcommand or behavior inconsistent with the cached contract. Configuration and
+permission changes still require their own checks. Examples do not override help.
 
 ## 2. Preserve the user's model choice
 
@@ -42,10 +47,9 @@ State the objective, target directory, allowed scope, prohibited actions, and re
 - commands and verification run;
 - remaining uncertainty or failures.
 
-Do not require the external agent to create `full.md`, `summary.md`, logs, or any
-other artifact. The orchestrating agent owns all durable logs and summaries; the
-external CLI only returns its final response. Do not discard stderr: append the
-external CLI's output to the task log (see §6). Process success is evidence only
+Do not require the external agent to create orchestration-only `full.md`, `summary.md`, or logs. Requested deliverables and authorized code changes remain its responsibility. The orchestrating agent owns all durable logs and summaries; the
+external CLI returns its response and authorized deliverables. Capture stdout,
+stderr and the actual exit status; choose the record size in §6. Process success is evidence only
 that the CLI exited; inspect its final report and the claimed artifacts before
 reporting success.
 
@@ -55,27 +59,34 @@ Use the CLI's currently documented resume command. Resume only the intended sess
 
 ## 6. Task log and summary
 
-Every delegated task keeps a durable record outside the conversation context.
-The orchestrating agent maintains, per task, under `$TACHIKOMA_LOG_DIR` or the
-default `<target-dir>/.tachikoma/<task-slug>/`:
+Choose the record size before launch:
 
-- `session.log` — every round's raw external CLI output and stderr, appended
-  behind a `===== round N <ISO timestamp> =====` separator;
-- `summary.md` — the current state, rewritten each round with a round number
-  and ISO timestamp in the header: route used, session handle, rounds run and
-  where each stopped, files inspected/changed, commands and verification run,
-  next status (`continue` | `complete` | `blocked`, with blocker text when
-  blocked), remaining uncertainty, and the narrow conclusion with evidence
-  paths.
+| Task | Coordinator record |
+| --- | --- |
+| One bounded call, completed and verified in the current session | Capture stdout/stderr and exit status using the host’s output capture or an authorized temporary file. Return a concise result with scope, verification and relevant failure evidence. No `.tachikoma` directory, `summary.md` or new session handle is required solely for bookkeeping. |
+| Multi-round, background, handed-off or explicitly resumable work | Keep the durable record below from the first round. |
 
-Deliver the summary by cating it into the command stdout; neither the
-orchestrating agent nor its parent should need a separate file read for the
-current state.
+If a one-call task needs continuation, preserve its available output, exit status,
+actual session handle and boundary in a durable record before resuming. Do not
+invent a handle or silently start a different conversation; report unavailable
+resume state. Requested deliverables remain required in either mode.
+
+For durable work the coordinator maintains a record under `$TACHIKOMA_LOG_DIR`
+or `<target-dir>/.tachikoma/<task-slug>/`:
+
+- `session.log`: append each round’s output and stderr with round/time separators.
+- `summary.md`: current route/version, session handle, execution boundary,
+  rounds/status, files, verification and remaining gaps, with evidence paths.
+  Update after each round; use `continue`, `complete` or `blocked` with a reason.
+
+Return the current concise summary directly; a separate `cat` is unnecessary
+when its verified content is already available. Preserve exit status when logging;
+a successful redirection or pipeline is not evidence the CLI succeeded.
 
 Context discipline:
 
-- Read `summary.md` first; it is the only file that may enter the agent
-  context in full.
+- For durable work, read `summary.md` first when resuming. Inspect relevant source files and
+  deliverables as needed to verify it; summaries do not replace evidence.
 - Consult `session.log` only with bounded extraction (tail, grep with line
   limits) for a specific error or evidence; never replay it wholesale.
 - Recommend adding `.tachikoma/` to the target project's `.gitignore`; use

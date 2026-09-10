@@ -7,7 +7,7 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { homedir } from "node:os";
+import { agentDir } from "../lib/agent-paths.ts";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -19,13 +19,12 @@ import {
 } from "../lib/slash-core.ts";
 
 const PACKAGE_SLASHES_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../slashes");
-const HOME_SLASHES_DIR = join(homedir(), ".pi", "agent", "slashes");
 
 export default function slashFramework(pi: ExtensionAPI) {
 	let activeMode: SlashDef | null = null;
 	const definitions = mergeSlashDefinitions(
 		loadSlashDefinitions(PACKAGE_SLASHES_DIR),
-		loadSlashDefinitions(HOME_SLASHES_DIR),
+		loadSlashDefinitions(join(agentDir(), "slashes")),
 		(message) => console.warn(message),
 	);
 

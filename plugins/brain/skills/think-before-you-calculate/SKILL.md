@@ -1,116 +1,57 @@
 ---
 name: think-before-you-calculate
-description: "Use when a task asks to run calculations, simulations, model training, computational searches, benchmarks, optimizations, workflows, agents, pipelines, or other tool-heavy execution before the scientific question and interpretation boundary are clear."
+description: "Frame scientific calculations, simulations, experiments and benchmark interpretation so the measured proxy supports the intended claim. Ordinary builds, tests, scripts and agent calls do not trigger this audit by themselves."
 ---
 
 # Think Before You Calculate
 
-## Overview
+Use this skill when designing a scientific calculation or interpreting an
+experimental or benchmark result. Identify what the measurement can establish
+before spending compute or making a scientific claim.
 
-Use this skill as the pre-execution brake. It keeps calculations, tools, benchmarks, and workflows from silently defining the question.
+## Choose the depth
 
-**Core principle:** run tools strongly, but never let tool output become a conclusion without object, proxy, evidence, failure, and responsibility boundaries.
+- **Ordinary engineering execution:** run the requested build, test, script or
+  agent task with its normal scope and checks. No scientific audit or template
+  is required merely because tools are involved.
+- **A specified calculation with a narrow output:** check the supplied inputs,
+  units, method and expected result internally, then proceed. Surface only gaps
+  that materially affect execution or interpretation.
+- **Experiment design or a stronger scientific claim:** state the question,
+  measurement and interpretation boundary briefly. Use the checks below; combine
+  related points instead of filling a fixed form.
 
-## Iron Law
+## Before spending compute
 
-```text
-NO EXECUTION-BASED CONCLUSION WITHOUT A PRE-CALC AUDIT
-```
+1. Identify the phenomenon or system and the question being tested.
+2. Connect its representation and measured proxy to that question. For example,
+   lower held-out MAE demonstrates predictive performance on that split, not
+   automatically the correct physical mechanism.
+3. Check the conditions where the comparison holds: units, data splits,
+   approximations, baselines, uncertainty and relevant failure conditions.
+4. Decide what outcome would support or weaken the hypothesis, which verification
+   is needed, and who interprets the result. Use the declared compute budget.
 
-You may run an exploratory calculation with missing fields, but you must label it exploratory and must not turn the result into scientific understanding.
+Use existing task context; do not ask the user to repeat known inputs. Missing
+information may justify an exploratory run or a narrower conclusion. Pause only
+when it prevents a meaningful or authorized next step.
 
-## Terms
+## Interpret the result
 
-Weak models must use these meanings, not guess.
+Report what was observed, under which conditions, and what it supports. Separate
+execution success from numerical validity and scientific interpretation. Mention
+unresolved gaps that affect the conclusion; do not append speculative disclaimers
+to every result. A useful proxy can justify a narrow engineering contribution
+without establishing understanding, discovery or generalization.
 
-| Term | Meaning |
-| --- | --- |
-| `calc` | Any calculation, simulation, derivation, ML training, benchmark, search, workflow, pipeline, or agent tool execution. |
-| `object` | The real thing, phenomenon, mechanism, system, or code state the work is about. It is not automatically a dataset, metric, or output. |
-| `boundary` | The scope where the result is meant to hold: data split, approximation, environment, assumptions, system limits, or use case. |
-| `representation` | How the object enters the system: coordinates, graph, Hamiltonian, tensor, prompt, AST, trace, embedding, schema, etc. |
-| `proxy` | A measurable or optimizable substitute for the real object or goal: metric, loss, label, benchmark, generated candidate, workflow success. |
-| `evidence` | What the calculation or tool output actually supports. |
-| `failure path` | How the result could fail or be falsified: distribution shift, broken approximation, missing variable, invalid workflow, bad tool call. |
-| `responsibility` | Who owns setup, interpretation, failure analysis, and final claim. |
-| `productive function` | The real narrow value of the tool: speed, scale, reproducibility, comparison, automation, cost reduction, candidate generation. |
-| `narrow claim` | The strongest claim the evidence supports without inflation. |
+For an exploratory run, identify the missing evidence before promoting its result
+to a scientific conclusion. Stop when the requested calculation and interpretation
+are complete; an open research question does not authorize another experiment.
 
-Information retrieval, source verification, and search-result interpretation route to `brain:agentic-search`. Parameter search, benchmark search, optimization search, candidate search, and other computational searches remain in this skill.
+## When further guidance is needed
 
-## Minimal Audit
+- Information retrieval and source verification: `agentic-search`.
+- Detailed scientific claim or paper review: `epistemic-systems-audit`.
+- System control, bypass and recovery ownership: `whole-object-responsibility`.
 
-Before execution or conclusion, fill this. Use `Unknown` rather than inventing.
-
-```text
-Object:
-Boundary:
-Representation:
-Proxy / Optimization Target:
-Evidence Expected:
-Failure Path:
-Responsibility:
-Productive Function:
-Narrow Claim This Could Support:
-```
-
-## Hard Gates
-
-If any gate fails, label the run exploratory or narrow the claim.
-
-```text
-No object -> no object-level claim.
-No boundary -> no generalization claim.
-No proxy explanation -> no claim beyond proxy success.
-No failure path -> no strong success claim.
-No responsibility owner -> no autonomy/safety/reliability claim.
-No productive function check -> critique may become over-dismissal.
-```
-
-## Pre-Calc Procedure
-
-1. Identify the object.
-2. Identify the representation.
-3. Identify the proxy or optimization target.
-4. State what the calculation can prove.
-5. State what it cannot prove.
-6. State the failure path.
-7. State who owns interpretation.
-8. Then run the tool, calculation, benchmark, or workflow.
-
-If the user only wants execution, keep the audit to 3-8 lines, then proceed.
-
-## Claim Compiler
-
-After execution, write conclusions in this form:
-
-```text
-The result supports [narrow claim] under [boundary].
-It does not establish [inflated claim].
-Missing evidence: [gap].
-Failure path: [failure condition or Unknown].
-Responsibility owner: [owner or Unknown].
-Productive function: [real value].
-```
-
-## Red Flags
-
-Stop and audit when:
-
-- The task says only "improve MAE," "run benchmark," "train model," "search candidates," "optimize," "generate candidates," or "automate workflow."
-- A metric, loss, benchmark score, generated output, or workflow completion is about to become the conclusion.
-- The calculation target is clear but the scientific object is not.
-- The tool can run, but no one owns interpretation.
-- The result is useful, but the story around it claims understanding, discovery, autonomy, or safety.
-
-## When This Is Not Enough
-
-Use a more specific skill when the task is not just pre-execution:
-
-- Use `agentic-search` for web search, current-information lookup, source verification, citations, and entity/person/paper/project disambiguation.
-- Use `epistemic-systems-audit` for papers, AI4S, benchmark claims, scientific understanding claims, and claim repair.
-- Use `whole-object-responsibility` for agent OS, workflow systems, infrastructure, HPC, distributed systems, protocol failure, and division-of-labor responsibility.
-
-## Bottom Line
-
-First make the calculation answerable. Then calculate.
+Load these only for the relevant part of the task; do not repeat the same audit.

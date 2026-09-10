@@ -1,5 +1,5 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { agentDir } from "../agent-paths.ts";
 import { dirname, join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -674,7 +674,7 @@ export async function registerAIHubMix(
 			),
 			cachePath:
 				environment.AIHUBMIX_CACHE_PATH ||
-				join(homedir(), ".pi", "agent", "cache", "aihubmix-models.json"),
+				join(agentDir(environment), "cache", "aihubmix-models.json"),
 			cacheMaxAgeMs: parsePositiveNumber(
 				environment.AIHUBMIX_CACHE_MAX_AGE_MS,
 				6 * 60 * 60 * 1000,

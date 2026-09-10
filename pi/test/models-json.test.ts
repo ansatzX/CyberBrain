@@ -3,6 +3,9 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import {
 	defaultModelsJsonPath,
@@ -20,6 +23,34 @@ function providerConfig(models: unknown[] = [{ id: "m1", name: "M1" }]) {
 		models,
 	};
 }
+
+test("independent processes preserve every provider during overlapping refreshes", async () => {
+	await withTempDir(async (dir) => {
+		const path = join(dir, "models.json");
+		await writeFile(path, JSON.stringify({ providers: {}, userSetting: "keep" }));
+		const writer = fileURLToPath(new URL("./fixtures/models-json-writer.ts", import.meta.url));
+		await Promise.all(["a", "b", "c", "d"].map((id) =>
+			promisify(execFile)(process.execPath, [writer, path, id])));
+		const result = JSON.parse(await readFile(path, "utf8"));
+		assert.deepEqual(Object.keys(result.providers).sort(), ["a", "b", "c", "d"]);
+		assert.equal(result.userSetting, "keep");
+		assert.ok(!(await readdir(dir)).some((name) => name.endsWith(".lock") || name.endsWith(".tmp")));
+	});
+});
+
+test("failed backup leaves original untouched and releases the writer lock", async () => {
+	await withTempDir(async (dir) => {
+		const path = join(dir, "models.json");
+		const original = JSON.stringify({ providers: {}, userSetting: "keep" });
+		await writeFile(path, original);
+		await assert.rejects(refreshModelsJsonProvider({ path, providerId: "a", config: providerConfig() }, {
+			copyFileImpl: async () => { throw new Error("backup denied"); },
+		}), /backup denied/);
+		assert.equal(await readFile(path, "utf8"), original);
+		await refreshModelsJsonProvider({ path, providerId: "b", config: providerConfig() });
+		assert.ok(JSON.parse(await readFile(path, "utf8")).providers.b);
+	});
+});
 
 async function withTempDir(run: (dir: string) => Promise<void>) {
 	const dir = await mkdtemp(join(tmpdir(), "models-json-test-"));

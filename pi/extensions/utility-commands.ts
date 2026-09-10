@@ -16,14 +16,21 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { getSessionThreadId, loadGoal } from "../lib/goal-core.ts";
 
 export default function utilityCommands(pi: ExtensionAPI) {
+	async function git(args: string[], cwd: string, timeout: number) {
+		const result = await pi.exec("git", args, { cwd, timeout });
+		if (result.code !== 0 || result.killed) {
+			throw new Error(result.stderr.trim() || (result.killed ? "git timed out or was interrupted" : `git exited with code ${result.code}`));
+		}
+		return result;
+	}
 	// ---------- /diff ----------
 	pi.registerCommand("ansatz:diff", {
 		description: "Show working tree changes overview",
 		handler: async (_args, ctx) => {
 			try {
-				const status = await pi.exec("git", ["status", "--short"], { timeout: 8000 });
-				const stat = await pi.exec("git", ["diff", "--stat"], { timeout: 8000 });
-				const staged = await pi.exec("git", ["diff", "--cached", "--stat"], { timeout: 8000 });
+				const status = await git(["status", "--short"], ctx.cwd, 8000);
+				const stat = await git(["diff", "--stat"], ctx.cwd, 8000);
+				const staged = await git(["diff", "--cached", "--stat"], ctx.cwd, 8000);
 				const parts = [
 					`--- git status ---\n${status.stdout.trim() || "(clean)"}`,
 					`--- unstaged ---\n${stat.stdout.trim() || "(none)"}`,
@@ -46,11 +53,11 @@ export default function utilityCommands(pi: ExtensionAPI) {
 		handler: async (_args, ctx) => {
 			const lines: string[] = [];
 			try {
-				const branch = await pi.exec("git", ["branch", "--show-current"], { timeout: 5000 });
-				const dirty = await pi.exec("git", ["status", "--porcelain"], { timeout: 5000 });
+				const branch = await git(["branch", "--show-current"], ctx.cwd, 5000);
+				const dirty = await git(["status", "--porcelain"], ctx.cwd, 5000);
 				lines.push(`branch: ${branch.stdout.trim() || "(detached)"}`, `dirty files: ${dirty.stdout.trim() ? dirty.stdout.trim().split("\n").length : 0}`);
-			} catch {
-				lines.push("branch: (not a git repo)");
+			} catch (error) {
+				lines.push(`git failed: ${(error as Error).message}`);
 			}
 			// goal 状态来自 goal-core（v2）
 			const threadId = getSessionThreadId(ctx.sessionManager.getSessionFile());

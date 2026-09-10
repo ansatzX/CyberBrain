@@ -1,79 +1,49 @@
 ---
 name: team-leader
-description: Use when coordinating multi-agent work, delegating tasks, managing agent teams, or making strategic decisions as team lead.
+description: Coordinate authorized multi-agent work with distinct task ownership, bounded launches, explicit takeover and evidence-based acceptance. A single-agent task does not require a team workflow.
 ---
 
-# Team Leader — Principles for Agent Team Management
+# Team Leader
 
-Inspired by Peter Drucker's management philosophy. Apply when leading agent teams.
+Use a team when independent scopes or a separate reviewer improve the requested
+result. This skill does not itself authorize delegation. For a small or tightly
+coupled task, work directly instead of manufacturing assignments.
 
-## 1. Strengths-Based Delegation
+## Assign work that can be accepted
 
-- Assign tasks by asking "What can this agent do best?" — not "What does this role require?"
-- Tolerate diversity in approach. Don't force uniform working styles.
-- Value judgment over caution. Reward bold, correct moves — not just safe ones.
+Before launching, establish the requested outcome, acceptance evidence, writer
+ownership, dependencies, maximum launches and time/round limits. A short existing
+coordination note is enough; no separate task system is required.
 
-## 2. Effectiveness Over Efficiency
+Give each child its scope, relevant context, expected artifact or answer, and the
+checks needed for acceptance. Tell writers which files or modules they own and
+that others may be editing nearby; preserve others' changes. Use separate
+worktrees when supported and appropriate for independent writers, while keeping
+shared state and integration ownership explicit.
 
-- **Effectiveness** = doing the right things. **Efficiency** = doing things right. Prioritize the former.
-- Core cycle: Set objectives, delegate, communicate, evaluate results, develop capabilities.
-- When something fails, examine the **system and process first** — failure signals a gap, not incompetence.
+Keep model and permission choices within the user’s policy. Use the host’s
+available tools and verified launch API. For Pi orchestration, consult
+`agent-cluster`; consult `pick-model` only when resolving model or effort choices.
 
-## 3. Delegate, Then Wait
+## Supervise and take over deliberately
 
-- Once you assign a task, **do not do it yourself**. Wait for the teammate to deliver. Your job is to coordinate, not to produce.
-- If a teammate is working, resist the urge to "help" by duplicating their work. Idle time as a leader is not wasted — it's discipline.
-- Reserve only work that genuinely requires your unique position (final integration, cross-team decisions, user communication).
-- Default authority rule: anything not explicitly reserved for the leader belongs to the team.
+- Continue independent parent work while children run. Do not duplicate an active
+  assignment or edit a child’s owned files concurrently.
+- Review deliveries and existing coordination state. Follow up on a concrete
+  blocker or missed reporting limit; silence alone is not proof of failure.
+- When a child fails or cannot finish within the agreed limit, stop it or confirm
+  it is inactive. Inspect partial output, transfer ownership explicitly, then
+  take over or use an authorized replacement within the remaining budget.
+- On scope violations, invalid launch fields or exhausted budgets, stop affected
+  work and report the observed state. Follow the declared failure policy;
+  retries must not broaden permissions or change models silently.
 
-## 4. Decisions Require Dissent
+## Accept the result and stop
 
-- Never finalize a decision without considering opposing views. Disagreement produces better alternatives.
-- Avoid two traps: over-relying on experience, and over-trusting your own judgment.
-- Decision framework:
-  1. Classify the problem (generic pattern or unique situation?)
-  2. Define boundary conditions (what must the solution achieve?)
-  3. Start with what's correct, not what's acceptable
-  4. Build execution into the decision
-  5. Validate against real-world feedback
-- If benefits clearly outweigh risks: **act decisively**. Never half-commit.
+Check each delivery against its acceptance criteria and source evidence. A child’s
+success report is not verification. Resolve conflicting findings before synthesis;
+for a consequential decision, seek an independent check when it adds useful evidence.
 
-## 5. Embrace Change
-
-- Treat change as opportunity, not threat. Watch for **trend shifts** — they reveal the future.
-- When a goal is achieved, immediately redefine it. Don't celebrate — iterate.
-- Only those who lead change survive structural disruption.
-
-## 6. Continuous Learning
-
-- Knowledge depreciates fast. Staying current is non-negotiable.
-- Seek information beyond your immediate scope to avoid blind confidence.
-- Core competitive advantage = ability to learn and adapt rapidly.
-
-## Two Anti-Patterns to Avoid
-
-### The Impatient Leader (doing teammates' work)
-- **Never** start doing a task you already assigned. If you delegated it, wait for the result.
-- If a teammate is slow or idle, **re-engage them with a follow-up instruction** — don't silently take over.
-- Doing teammates' work wastes the cost already spent launching them, creates duplicated/conflicting work, and trains you into a bottleneck.
-- Your hands should be idle while teammates work. Use that time to plan next steps or review completed work.
-
-### The Absent Leader (too loose)
-- Delegation without follow-up is abandonment, not empowerment.
-- **Actively check the shared task list** after each teammate message. Track what's done, what's stuck, what's next.
-- When a teammate delivers, **review the output** before moving on. Don't blindly accept.
-- Set clear expectations upfront: what "done" looks like, what to do if blocked, when to report back.
-- If a teammate goes silent or drifts off-task, intervene early — don't wait for the final result to discover problems.
-
-## Operational Checklist
-
-When managing a team session:
-
-1. **Scope** — Define clear objectives and success criteria before starting
-2. **Match** — Assign agents whose strengths align with the task
-3. **Empower** — Provide context and goals, not step-by-step instructions
-4. **Wait** — After delegating, do NOT do the work yourself. Coordinate.
-5. **Monitor** — Check the shared task list actively. Review each delivery. Follow up on silence.
-6. **Adapt** — When plans fail, fix the process first, then retry
-7. **Challenge** — Before critical decisions, actively seek alternative viewpoints
-8. **Iterate** — Completed goals become foundations for new ones
+The parent owns integration, relevant final checks and the user-facing result.
+Report remaining uncertainty, account for active children and cleanup, and stop
+at the authorized outcome. Do not start a new goal because the team has capacity.

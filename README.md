@@ -18,13 +18,19 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 | Plugin | Contents | Status |
 | -------- | ---------- | -------- |
 | `awesome-agent-select` | Host-neutral prompted roles rendered for Codex and Pi: review, QA, API docs, performance, tooling, TypeScript work, and tachikoma delegation | Published |
-| `tachikoma` | Skills and commands for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code, and Pi | Published |
+| `tachikoma` | Skills for coordinating Codex, Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code, and Pi | Published |
 | `brain` | Skills for epistemic audits, calculation boundaries, scientific-claim review, and whole-object responsibility | Published |
 
 ## Requirements
 
 - Optional CLI tools used by `tachikoma`: Gemini CLI, OpenCode, Qwen, GitHub Copilot CLI, Kimi Code, Pi
-- Keep all CLI tools used by `tachikoma` updated to their latest available release before relying on the corresponding skill.
+- Verify the installed CLI interface before first use. Reuse verified evidence
+  within a session while the executable and relevant configuration are unchanged;
+  recheck after upgrades or environment changes. A newer version still needs
+  compatibility verification.
+- Development checks use Node’s built-in TypeScript support, Python 3 and Bash.
+  The separate [skill gate](pi/test/evals/README.md) requires the exact tested
+  pi-subagents toolchain recorded in `pi/test/skill-runtime.json`.
 
 ## Codex Installation
 
@@ -33,6 +39,7 @@ Clone and register the marketplace:
 ```bash
 mkdir -p ~/soft
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
+cd ~/soft/CyberBrain
 codex plugin marketplace add ~/soft/CyberBrain
 ```
 
@@ -91,7 +98,10 @@ bash tools/manage-pi.sh install
 bash tools/manage-pi.sh doctor
 ```
 
-The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. Its `pick-model` skill picks model and thinking level per delegated launch (parent-model inheritance unless an approved model policy exists), and `agent-cluster` drives multi-agent launch, supervision, and fan-in; neither persists model choices on its own. See [INSTALL.md](INSTALL.md) for the full install, update, and uninstall guide.
+The Pi adapter does not manage credentials, sessions, goals, model preferences, themes, or thinking settings. Its `pick-model` skill picks model and thinking level per delegated launch (preserving configured role/default resolution, with parent-session fallback), and `agent-cluster` drives multi-agent launch, supervision, and fan-in; neither persists model choices on its own. See [INSTALL.md](INSTALL.md) for the full install, update, and uninstall guide,
+and [pi/README.md](pi/README.md) for package development. Use `--pi-home` for
+installer checks in a separate configuration directory, and the same
+`PI_CODING_AGENT_DIR` when subsequently running Pi.
 
 ### Long-running goals (`/ansatz:goal`)
 
@@ -113,6 +123,7 @@ Providers register in-process via `pi.registerProvider`, which only affects the 
 
 - Refuses to touch an unparseable `models.json`; only ever rewrites its own provider section, preserving all other keys.
 - Skips the write entirely when nothing changed; otherwise writes atomically (temp file + rename), round-trip-validates the JSON before and after writing, and snapshots the previous file to `models.json.bak` for rollback.
+- Serializes Cyberbrain writers across processes with a directory lock covering read, write, validation, and rollback. A backup failure leaves the current file unchanged. Lock acquisition times out after five seconds; after a crashed writer, stop all writers before removing the stale `models.json.lock` directory and retrying.
 - Refresh failures only warn — the in-process provider registration is never blocked, and for `deepseek-responses` the refresh is deliberately kept out of the synchronous registration path so disk I/O can never delay or break it.
 
 | Provider | Path override | Kill switch |
@@ -133,7 +144,7 @@ The `aihubmix` catalog is written grouped by vendor, newest version first within
 | Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
 | Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
 | Subagents | `pi/subagents/` | generated `cyberbrain.<role>` agents from `awesome-agent-select` profiles, e.g. `/run cyberbrain.code-reviewer` |
-| Dependency | npm `pi-subagents` | subagent delegation engine (chains, parallel fanout, async supervision), installed separately as a Pi package (`pi install npm:pi-subagents`) |
+| Dependency | npm `pi-subagents` | subagent delegation engine (single calls and `workflowScript` for dependent/parallel work and async supervision), installed separately as a Pi package (`pi install npm:pi-subagents`) |
 | Dependency | npm `pi-lens` | real-time code feedback (LSP, linters, formatters, type-checking), installed separately as a Pi package (`pi install npm:pi-lens`) |
 
 ## Plugin Layout
@@ -143,6 +154,8 @@ The `aihubmix` catalog is written grouped by vendor, newest version first within
 tools/
   awesome-agent-select-codex-agents.sh  # explicit install / doctor / uninstall wrapper
   cleanup-agent-symlinks.sh            # batch cleanup of agent role symlinks
+  generate-agent-adapters.mjs          # render canonical roles for both hosts
+  validate-skills.mjs                  # required skill compatibility gate
 plugins/
   awesome-agent-select/
     .codex-plugin/plugin.json
@@ -158,6 +171,9 @@ plugins/
     .codex-plugin/plugin.json
     skills/
 pi/
+  skills/                             # Pi guides, conditional references and workflow examples
+  test/contracts/                     # skill runtime and metadata checks
+  test/evals/                         # behavioral cases and evaluation guide
   subagents/awesome-agent-select/      # generated Pi subagent Markdown adapters
 ```
 
@@ -169,7 +185,14 @@ pi/
   <img src="assets/Tachikoma.png" alt="tachikoma" width="300"/>
 </div>
 
-`tachikoma` provides skills for running and coordinating external AI CLI tools from Codex.
+`tachikoma` provides external AI CLI coordination skills through the Codex plugin
+and the Pi package’s shared-skill references. Each host uses its own execution
+tools; installing a skill does not install the external CLI.
+
+A verified one-call task captures output and exit status without mandatory durable
+coordinator files. Multi-round, background and resumable tasks keep a session log
+and summary. Resume preserves the actual session and exact tool boundary; Pi tool
+allowlists do not constrain arbitrary extension startup code or provide an OS sandbox.
 
 Included skills:
 
@@ -196,7 +219,12 @@ Included skills:
 - `whole-object-responsibility`
 - `tame-dev-workflows`
 
-State-machine TODO:
+Ordinary answers and read-only reviews use an internal check without state files.
+Scientific experiment design and interpretation activate `think-before-you-calculate`;
+ordinary builds, scripts and unit tests do not require its full audit. Detailed
+scientific and system reviews load their specialized guidance when relevant.
+
+The following state-machine tooling is planned, not shipped:
 
 - Add a validator that checks state nodes for completion without verification, proxy-only evidence marked verified, unresolved object drift, and open gaps before `CLAIM_READY`.
 - Add a summarizer that rolls child agent state nodes up into a parent node without requiring concurrent writes to the same file.
@@ -204,7 +232,9 @@ State-machine TODO:
 
 ### `awesome-agent-select`
 
-`awesome-agent-select` provides prompted subagents.
+`awesome-agent-select` provides prompted subagents and the `team-leader` skill.
+The skill defines task ownership, bounded launches, takeover and acceptance; it
+does not require a team for small tasks or authorize new work after completion.
 
 Included agents:
 
@@ -250,10 +280,18 @@ Validate marketplace and plugin JSON:
 jq -e . .agents/plugins/marketplace.json plugins/*/.codex-plugin/plugin.json
 ```
 
-Check skill metadata coverage and generated agent adapters:
+Run the required skill gate (dependency setup and behavioral evaluation are described in [skill validation](pi/test/evals/README.md)):
 
 ```bash
-find plugins -path '*/skills/*/SKILL.md' -type f | wc -l
-find plugins -path '*/skills/*/agents/openai.yaml' -type f | wc -l
-node tools/generate-agent-adapters.mjs --check
+node tools/validate-skills.mjs
 ```
+
+The gate fails on missing or mismatched dependencies and uses mocked child launches;
+it does not call models. For substantive routing or workflow edits, also use the
+independent trigger/decision scenarios in the linked guide. Passing automated
+checks alone is not behavioral validation.
+
+For Pi runtime and installer changes, run the relevant checks listed in
+[Pi development](pi/README.md#development). Role changes must be made in canonical
+profiles and regenerated; installer/discovery changes should also be checked in
+temporary Codex and Pi configuration homes.

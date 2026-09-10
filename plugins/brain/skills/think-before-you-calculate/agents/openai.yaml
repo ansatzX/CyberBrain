@@ -1,4 +1,4 @@
 interface:
   display_name: "Think Before You Calculate"
   short_description: "Pre-calc object/proxy audit"
-  default_prompt: "Use $think-before-you-calculate before running this tool-heavy task: identify object, boundary, proxy, failure path, responsibility, productive function, and the narrowest claim the result could support."
+  default_prompt: "Use $think-before-you-calculate to connect this scientific experiment’s question, measurement and interpretation boundary before running it."

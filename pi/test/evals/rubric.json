@@ -1,0 +1,62 @@
+[
+  {
+    "id": "engineering-test",
+    "criteria": [
+      "No scientific audit or new experiment; execute ordinary tests and report observed results."
+    ]
+  },
+  {
+    "id": "scientific-design",
+    "criteria": [
+      "Activate scientific framing; identify comparison, proxy, split/boundary and compute budget before execution; no discovery claim from MAE alone."
+    ]
+  },
+  {
+    "id": "specified-calculation",
+    "criteria": [
+      "Internal input/unit check; no nine-field audit or unsolicited research design."
+    ]
+  },
+  {
+    "id": "single-review",
+    "criteria": [
+      "Do not create a team or a coordination task list."
+    ]
+  },
+  {
+    "id": "failed-writer",
+    "criteria": [
+      "Stop or confirm parser child inactive, inspect partial edits, explicitly transfer ownership; preserve storage ownership and changes."
+    ]
+  },
+  {
+    "id": "role-default",
+    "criteria": [
+      "Preserve role model B; medium may use the same resolved B suffix; no registry/provider search guide or persistent configuration change."
+    ]
+  },
+  {
+    "id": "search-route",
+    "criteria": [
+      "Load provider-capabilities reference; inspect provider/extension behavior and source handling rather than infer internet access from the model name."
+    ]
+  },
+  {
+    "id": "one-call",
+    "criteria": [
+      "Reuse valid help evidence; preserve read allowlist; capture output/error/status; no mandatory durable directory, summary or new handle."
+    ]
+  },
+  {
+    "id": "changed-cli",
+    "criteria": [
+      "Recheck changed CLI and resume syntax; retain exact read boundary and actual handle; maintain durable record; do not replace read with broader helper preset."
+    ]
+  },
+  {
+    "id": "failed-resume",
+    "criteria": [
+      "Preserve exit17; inspect bounded failure evidence and partial artifacts; update blocked summary and report; no silent retry, scope/model change or invented failure cause."
+    ]
+  }
+]

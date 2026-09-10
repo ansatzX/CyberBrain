@@ -88,8 +88,10 @@ When changing a role, edit its canonical text and regenerate; never hand-edit a
 rendered TOML or Pi adapter. Keep these files synchronized.
 
 Do not add `model` or `model_reasoning_effort` to generated agent definitions
-unless the maintainer explicitly wants pinned models. Default behavior should
-inherit the current Codex or Pi session's model, profile, and reasoning settings.
+unless the maintainer explicitly wants pinned models. Leave model/profile/effort
+selection to the host's configured resolution. In Pi, role overrides or configured
+defaults can precede parent-session inheritance; omission does not prove that a
+child uses the parent's model.
 
 Do not reintroduce plugin hooks for agent installation unless the maintainer
 explicitly asks for them. The supported path is the explicit installer.
@@ -100,13 +102,35 @@ Published plugins should remain narrowly scoped:
 
 - `awesome-agent-select`: host-neutral prompted-role source plus generated
   Codex roles, packaged Pi subagents, and explicit Codex agent-role installer
-- `tachikoma`: Codex-hosted skills for coordinating external AI CLIs
-- `brain`: Codex-hosted audit and reasoning skills
+- `tachikoma`: external AI CLI coordination skills, published through the Codex
+  adapter and referenced by Pi; use the active host’s execution tools
+- `brain`: shared audit and reasoning skills, including the Codex-only
+  `codex-compatible` boundary guide
 
 Keep repo-root marketplace metadata aligned with plugin manifests:
 
 - `.agents/plugins/marketplace.json`
 - `plugins/*/.codex-plugin/plugin.json`
+
+## Skill Maintenance
+
+Keep entrypoints focused on decisions that change execution. Ordinary builds,
+tests and scripts do not require a scientific audit. Load substantial conditional
+guidance from linked references only when its scenario applies.
+
+- Preserve user intent, permission boundaries, configured model resolution and
+  stopping conditions when simplifying instructions.
+- Keep Pi workflow examples in `pi/skills/agent-cluster/examples/`; documentation
+  and runtime tests must consume the same files. Verify the current public API,
+  not only internal schemas; the checked runtime uses `workflowScript`.
+- Keep model/provider details in `pi/skills/pick-model/references/`, with explicit
+  routing from the entrypoint. Do not turn provider names into quality rankings.
+- The Tachikoma shared protocol owns interface-evidence reuse and record modes.
+  A bounded one-call task does not require durable coordinator files. Resumable,
+  background and multi-round work must preserve its real handle, exact execution
+  boundary, exit status and durable evidence.
+- Regenerate both host adapters if a canonical role changes to follow a revised
+  skill protocol; do not leave rendered role instructions contradicting the skill.
 
 ## Documentation Rules
 
@@ -131,8 +155,13 @@ design-doc references in the same change.
 - `.agents/plugins/marketplace.json`: Codex marketplace registry
 - `plugins/awesome-agent-select/`: canonical role text, generated Codex roles,
   shared skills, and Codex installer
-- `plugins/tachikoma/skills/`: Codex skills for external AI CLIs
-- `plugins/brain/skills/`: Codex reasoning/audit skills
+- `plugins/tachikoma/skills/`: external CLI skills and shared invocation protocol
+- `plugins/brain/skills/`: shared reasoning/audit skills and host-specific routing
+- `pi/skills/`: Pi launch/model/extension guides, linked references and examples
+- `tools/validate-skills.mjs`: required automated skill gate
+- `pi/test/skill-runtime.json`: exact tested runtime/dependency versions
+- `pi/test/contracts/`: real-runtime contract and skill metadata/reference checks
+- `pi/test/evals/`: trigger/decision cases, reviewer rubric and evaluation procedure
 - `tools/awesome-agent-select-codex-agents.sh`: repo-root installer wrapper
 - `tools/cleanup-agent-symlinks.sh`: legacy symlink cleanup utility
 
@@ -140,13 +169,46 @@ design-doc references in the same change.
 
 - `pi/` is a local Pi package named `cyberbrain-pi`.
 - Pi extensions must use package-relative imports and keep pure helpers/tests outside `pi/extensions/`.
-- `tools/manage-pi.sh` owns migration of legacy Cyberbrain Pi files and must never manage `auth.json`, API keys, user model preferences, sessions, cache, or goals.
+- `tools/manage-pi.sh` delegates to `tools/manage-pi.py`, which owns migration of legacy Cyberbrain Pi files and must never manage `auth.json`, API keys, user model preferences, sessions, cache, or goals.
 - Existing shared skills are referenced from `pi/package.json`; do not copy them into generated mirrors.
 - Home slash definitions may override package defaults; installer migration removes only the known legacy Cyberbrain defaults.
+- Respect `PI_CODING_AGENT_DIR` and the installer’s `--pi-home` override; use
+  `pi/lib/agent-paths.ts` for runtime paths. Test installations in temporary homes.
+- Preserve installer rollback and per-resource backup ownership. Changes to
+  provider JSON updates must retain cross-process locking and unrelated keys.
 
 ## Validation
 
-Use focused validation that matches the change.
+Use focused validation that matches the change. Run commands from the repository root.
+
+For skills, examples or their validation infrastructure:
+
+```bash
+node tools/validate-skills.mjs
+```
+
+This gate checks the exact toolchain in `pi/test/skill-runtime.json`, metadata,
+local references, workflow examples against the actual public runtime, CLI helper
+failure/boundary handling, and generated adapters. Missing or mismatched dependencies
+must fail rather than skip. Set `PI_SUBAGENTS_PACKAGE_ROOT` for a non-default
+installation; see [skill validation](pi/test/evals/README.md).
+
+For substantial routing or decision changes, also follow that guide’s independent
+behavior evaluation when authorized and available. Withhold the rubric from the
+evaluator. Report unavailable evaluation separately; automated shape/runtime tests
+do not establish that a model makes the intended decisions.
+
+For Pi runtime changes, use the relevant tests from:
+
+```bash
+node --test pi/test/*.test.ts
+python3 pi/test/manage-pi.test.py
+bash pi/test/manage-pi.test.sh
+```
+
+The ordinary tests do not replace the skill gate. Avoid importing live provider
+extensions as a generic documentation or syntax check; imports can have startup
+side effects.
 
 For packaging and manifest edits:
 

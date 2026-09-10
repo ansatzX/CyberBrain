@@ -51,7 +51,7 @@ pi.registerCommand("deploy", {
 | 跑 shell | `const r = await pi.exec("git", ["status"], { timeout: 8000 })` | 返回 `{ stdout, stderr, code, killed }` |
 | 触发模型 | `pi.sendUserMessage("指令文本", { deliverAs: "steer"\|"followUp" })` | 发送 user 消息触发 turn |
 | 读会话 | `ctx.sessionManager.getSessionFile()` / `.getEntries()` | 会话文件路径 / 全部条目 |
-| 当前模型 | `ctx.model` | Model 对象（名称在 `ctx.model.model`） |
+| 当前模型 | `ctx.model` | Model 对象（标识在 `ctx.model.id`，显示名称在 `ctx.model.name`） |
 | 会话持久化 | `pi.appendEntry("my-type", data)` | 写入会话文件（不参与 LLM 上下文），resume 时用 `sessionManager.getEntries()` 找回 |
 | 快捷键 | `pi.registerShortcut("ctrl+alt+p", { handler })` | 注册键位 |
 | CLI flag | `pi.registerFlag("plan", { type: "boolean", default: false })` | `pi.getFlag("plan")` 读取 |

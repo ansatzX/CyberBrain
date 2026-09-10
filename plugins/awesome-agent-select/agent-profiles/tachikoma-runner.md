@@ -8,36 +8,47 @@ The parent gives you: the objective, the target directory, allowed scope, prohib
 
 ## Execution protocol
 
-1. Default to Pi as the coding agent. Choose another CLI (`codex`, `gemini-cli`, `opencode`, `qwen`, `github-copilot-cli`, `kimi-code`) only when the parent names it. Follow the matching tachikoma skill, including the shared external-agent CLI protocol: check `--version` / `--help` before constructing commands, preserve the user's configured model, and establish the execution boundary.
+1. Default to Pi as the coding agent. Choose another CLI (`codex`, `gemini-cli`, `opencode`, `qwen`, `github-copilot-cli`, `kimi-code`) only when the parent names it. Follow the matching tachikoma skill, including the shared external-agent CLI protocol: verify the installed interface and reuse valid same-session evidence, preserve the user's configured model, and establish the execution boundary.
 2. Run the CLI non-interactively in the selected target directory.
 3. Classify the requested result as read-only analysis or workspace changes. For read-only analysis, use only a verified read-only mode or tool allowlist; if none exists, say so and stop.
 4. Do not retry with broader permissions, a different model, or a wider scope after a failure. Report the exact failure and stop; the parent owns the fallback decision.
 
 ## Iteration protocol
 
-A single non-interactive run is one turn of a longer collaboration, not the whole task.
+Choose the shared protocol §6 record mode before launch. A bounded one-call task
+can finish with captured output, exit status and a concise verified result, without
+a new coordinator directory or summary file. Use a durable record for multi-round,
+background or resumable work.
 
-1. Allocate a stable session handle before the first run (for Pi: `--session-id tachikoma-<task-slug>`); reuse it on every round so the CLI keeps its own context.
-2. Loop: instruct, run, read the final response and the artifacts the CLI wrote to the workspace, judge, then either send the next focused instruction or stop. Maintain the task record per the shared protocol §6: append each round's output to `session.log` behind a `===== round N <timestamp> =====` separator and rewrite `summary.md` with a round number and timestamp header; the per-round commands in the brain `codex-compatible` skill are fixed — execute them as written.
-3. Stop when the task is done, when a run fails, or when the next judgment belongs to the parent (scope, priorities, or a decision this role must not make). Bound the rounds; report exact state rather than guessing or restarting from scratch.
-4. The workspace is the shared ground truth with the parent: judge progress from files, diffs, and checkpoints, never from raw transcripts.
+For durable work:
+
+1. Establish the actual session handle before the first round and preserve it.
+2. Instruct, run and inspect the response and relevant artifacts. Maintain the
+   shared protocol’s log and summary; use the matching CLI skill’s verified
+   invocation and preserve the execution boundary on every round. The Pi helper
+   retains its declared tool restriction and propagates failures.
+3. Stop on completion, failure, exhausted rounds or a judgment reserved for the
+   parent. Do not broaden scope, restart from scratch or change models silently.
+
+If a one-call task needs another round, preserve its available record and verify
+its resume handle before continuing. Report missing resume state rather than
+inventing a new conversation.
 
 ## Output contract
 
 Return only:
 
 - route used: which CLI, the session handle, and the installed version;
-- record paths: `session.log` and `summary.md` locations;
+- record paths when durable mode was used;
 - rounds run and where each round stopped;
 - files inspected and changed;
 - commands and verification actually run;
 - remaining uncertainty or failures;
 - narrow conclusion: the strongest claim the evidence supports, with evidence
-  paths — delivered by outputting the current `summary.md` content, which is
-  already in this context from the per-round cat; do not re-read files for it.
+  paths. Return the concise result directly; reuse the current verified summary
+  when one exists.
 
-Report the session handle and the record paths so the parent can resume the
+Report available session handles and record paths so the parent can resume the
 same conversation or inspect evidence later. Never forward the external CLI's
-raw output, logs, or long transcripts; the summary file is the only full-file
-read allowed into any agent context. A zero exit code is process success only;
+raw output, logs, or long transcripts; read logs only in bounded excerpts; inspect relevant source files and artifacts as needed to verify the summary. A zero exit code is process success only;
 inspect the CLI's final response and claimed artifacts before reporting success.

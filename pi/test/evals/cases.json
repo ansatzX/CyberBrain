@@ -1,0 +1,85 @@
+[
+  {
+    "id": "engineering-test",
+    "request": "运行已有 parser 单元测试，报告结果。",
+    "context": "测试命令和依赖已知；不要求性能或科学结论。",
+    "skills": [
+      "plugins/brain/skills/think-before-you-calculate/SKILL.md"
+    ]
+  },
+  {
+    "id": "scientific-design",
+    "request": "比较两个势能模型，设计实验判断哪个更准确，并给出可支持的结论。",
+    "context": "尚未确定数据划分、评价指标、物理适用范围或计算预算。不要实际运行计算。",
+    "skills": [
+      "plugins/brain/skills/think-before-you-calculate/SKILL.md"
+    ]
+  },
+  {
+    "id": "specified-calculation",
+    "request": "按给定数组计算 RMSE，只返回数值。",
+    "context": "单位、公式、输入均已明确且一致；不要在本评估中实际计算。",
+    "skills": [
+      "plugins/brain/skills/think-before-you-calculate/SKILL.md"
+    ]
+  },
+  {
+    "id": "single-review",
+    "request": "检查一个十行函数中的空值处理，直接给我结论。",
+    "context": "由当前代理即可完成，没有要求多代理。",
+    "skills": [
+      "plugins/awesome-agent-select/skills/team-leader/SKILL.md"
+    ]
+  },
+  {
+    "id": "failed-writer",
+    "request": "接手失败子代理的 parser 修复，storage 子代理继续工作。",
+    "context": "已授权两模块修复；parser 子代理超出时限但尚未确认停止，有部分未提交改动。",
+    "skills": [
+      "plugins/awesome-agent-select/skills/team-leader/SKILL.md"
+    ]
+  },
+  {
+    "id": "role-default",
+    "request": "为已授权的 reviewer 启动选择模型和思考等级。",
+    "context": "父模型 A，reviewer 已配置模型 B，B 支持 medium；无替代模型策略；任务是常规代码审查。",
+    "skills": [
+      "pi/skills/pick-model/SKILL.md"
+    ]
+  },
+  {
+    "id": "search-route",
+    "request": "已批准用 DeepSeek Responses 子代理查最新论文，确认搜索能力。",
+    "context": "当前扩展清单和 provider 行为尚未核对；不要实际联网或发起代理。",
+    "skills": [
+      "pi/skills/pick-model/SKILL.md"
+    ]
+  },
+  {
+    "id": "one-call",
+    "request": "用已授权的 Pi 做一次只读函数分析，返回结果即可。",
+    "context": "当前会话已核验同一路径和版本的 Pi 帮助、read 工具边界和扩展副作用，配置未变；预期一轮完成，无需交接。",
+    "skills": [
+      "plugins/tachikoma/skills/_shared/agent-cli.md",
+      "plugins/tachikoma/skills/pi/SKILL.md"
+    ]
+  },
+  {
+    "id": "changed-cli",
+    "request": "继续同一个已授权的多轮只读任务。",
+    "context": "PATH 指向升级后的 Pi；已有真实 session handle、read 边界和日志。没有批准扩权。",
+    "skills": [
+      "plugins/tachikoma/skills/_shared/agent-cli.md",
+      "plugins/tachikoma/skills/pi/SKILL.md"
+    ]
+  },
+  {
+    "id": "failed-resume",
+    "request": "只读续跑返回退出码 17，接下来怎么办？",
+    "context": "已有持久记录；本轮 stderr 和部分产物可查；没有额外重试或扩权授权。",
+    "skills": [
+      "plugins/tachikoma/skills/_shared/agent-cli.md",
+      "plugins/tachikoma/skills/pi/SKILL.md"
+    ]
+  }
+]

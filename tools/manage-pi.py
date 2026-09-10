@@ -65,7 +65,7 @@ def sha256_file(path: Path) -> str:
 
 
 def relative_files(path: Path) -> list[Path]:
-    if path.is_file() or path.is_symlink():
+    if not path.is_dir():
         return [Path(path.name)]
     return sorted(item.relative_to(path) for item in path.rglob("*") if item.is_file())
 
@@ -102,7 +102,7 @@ def recognized_file(
     previous_hashes: dict[str, str],
 ) -> bool:
     source = pi_home / legacy_root
-    source_file = source if source.is_file() or source.is_symlink() else source / nested
+    source_file = source / nested if source.is_dir() else source
     key = str(Path(legacy_root) / nested) if source.is_dir() else legacy_root
     digest = sha256_file(source_file)
     target = package_target(package_root, legacy_root, nested if source.is_dir() else None)
@@ -124,7 +124,7 @@ def planned_legacy_migrations(pi_home: Path, repo_root: Path, manifest: dict | N
         if all(recognized_file(pi_home, package_root, relative, nested, previous_hashes) for nested in nested_files):
             hashes = {}
             for nested in nested_files:
-                source_file = source if source.is_file() or source.is_symlink() else source / nested
+                source_file = source / nested if source.is_dir() else source
                 key = str(Path(relative) / nested) if source.is_dir() else relative
                 hashes[key] = sha256_file(source_file)
             planned.append({"relative": relative, "hashes": hashes})
@@ -148,28 +148,110 @@ def atomic_json(path: Path, value: dict) -> None:
         temporary_path.unlink(missing_ok=True)
 
 
-def run_pi(pi_bin: str, arguments: list[str], dry_run: bool) -> None:
+def run_pi(pi_bin: str, arguments: list[str], dry_run: bool, pi_home: Path) -> None:
     print("PI " + " ".join(arguments))
     if dry_run:
         return
-    subprocess.run([pi_bin, *arguments], check=True)
+    subprocess.run([pi_bin, *arguments], check=True,
+                   env={**os.environ, "PI_CODING_AGENT_DIR": str(pi_home)})
 
 
-def backup_and_remove(pi_home: Path, backup_root: Path, planned: list[dict], dry_run: bool) -> None:
+def backup_legacy(pi_home: Path, backup_root: Path, planned: list[dict]) -> None:
     for item in planned:
         source = pi_home / item["relative"]
         target = backup_root / item["relative"]
         print(f"BACKUP {source} -> {target}")
-        print(f"REMOVE {source}")
-        if dry_run:
-            continue
         target.parent.mkdir(parents=True, exist_ok=True)
         if source.is_dir() and not source.is_symlink():
             shutil.copytree(source, target)
-            shutil.rmtree(source)
         else:
             shutil.copy2(source, target, follow_symlinks=False)
-            source.unlink()
+
+
+def legacy_backups(manifest: dict | None) -> dict[str, str]:
+    """Read both the original single-batch manifest and per-resource backups."""
+    manifest = manifest or {}
+    backups = dict(manifest.get("legacy_backups", {}))
+    if manifest.get("backup_dir"):
+        for relative in manifest.get("migrated", []):
+            backups.setdefault(relative, str(Path(manifest["backup_dir"]) / relative))
+    return backups
+
+
+def copy_resource(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if source.is_dir() and not source.is_symlink():
+        shutil.copytree(source, target)
+    else:
+        shutil.copy2(source, target, follow_symlinks=False)
+
+
+def migrate_and_run(args: argparse.Namespace, old_manifest: dict | None,
+                    planned: list[dict], command) -> None:
+    pi_home = Path(args.pi_home).expanduser().resolve()
+    manifest_path = pi_home / ".cyberbrain-pi.manifest.json"
+    source = package_source(Path(args.repo_root).resolve())
+    if args.dry_run:
+        for item in planned:
+            print(f"MIGRATE {pi_home / item['relative']} (backup before removal)")
+        command()
+        return
+
+    backups = legacy_backups(old_manifest)
+    backup_root = None
+    if planned:
+        parent = pi_home / "backups" / "cyberbrain-pi"
+        parent.mkdir(parents=True, exist_ok=True)
+        backup_root = Path(tempfile.mkdtemp(
+            prefix=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-"), dir=parent))
+        # Finish every backup before deleting any live resource.
+        backup_legacy(pi_home, backup_root, planned)
+        for item in planned:
+            backups[item["relative"]] = str(backup_root / item["relative"])
+
+    manifest = dict(old_manifest or {})
+    hashes = dict(manifest.get("legacy_hashes", {}))
+    for item in planned:
+        hashes.update(item["hashes"])
+    manifest.update({
+        "version": MANIFEST_VERSION,
+        "source": source,
+        "installed_at": manifest.get("installed_at", datetime.now(timezone.utc).isoformat()),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "legacy_backups": backups,
+        "migrated": sorted(backups),
+        "legacy_hashes": hashes,
+        "migration_pending": True,
+    })
+    manifest.pop("backup_dir", None)
+    # Recovery information survives both command failures and process interruption.
+    atomic_json(manifest_path, manifest)
+    removed: list[str] = []
+    try:
+        for item in planned:
+            relative = item["relative"]
+            path = pi_home / relative
+            print(f"REMOVE {path}")
+            removed.append(relative)
+            if path.is_dir() and not path.is_symlink():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        command()
+        manifest["migration_pending"] = False
+        atomic_json(manifest_path, manifest)
+    except BaseException:
+        # Keep the recovery manifest if rollback itself fails or a new file conflicts.
+        for relative in removed:
+            target = pi_home / relative
+            if target.exists() or target.is_symlink():
+                fail(f"rollback conflict: {target}; recovery manifest retained at {manifest_path}")
+            copy_resource(Path(backups[relative]), target)
+        if old_manifest is None:
+            manifest_path.unlink(missing_ok=True)
+        else:
+            atomic_json(manifest_path, old_manifest)
+        raise
 
 
 def settings_contains_source(pi_home: Path, source: str) -> bool:
@@ -206,26 +288,8 @@ def install(args: argparse.Namespace) -> None:
     manifest_path = pi_home / ".cyberbrain-pi.manifest.json"
     old_manifest = load_manifest(manifest_path)
     planned = planned_legacy_migrations(pi_home, repo_root, old_manifest)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup_root = pi_home / "backups" / "cyberbrain-pi" / timestamp
-    backup_and_remove(pi_home, backup_root, planned, args.dry_run)
-    run_pi(args.pi_bin, ["install", source], args.dry_run)
-    if args.dry_run:
-        return
-    legacy_hashes = dict((old_manifest or {}).get("legacy_hashes", {}))
-    for item in planned:
-        legacy_hashes.update(item["hashes"])
-    previous_migrated = set((old_manifest or {}).get("migrated", []))
-    previous_migrated.update(item["relative"] for item in planned)
-    atomic_json(manifest_path, {
-        "version": MANIFEST_VERSION,
-        "source": source,
-        "installed_at": (old_manifest or {}).get("installed_at", datetime.now(timezone.utc).isoformat()),
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-        "backup_dir": str(backup_root) if planned else (old_manifest or {}).get("backup_dir"),
-        "migrated": sorted(previous_migrated),
-        "legacy_hashes": legacy_hashes,
-    })
+    migrate_and_run(args, old_manifest, planned,
+                    lambda: run_pi(args.pi_bin, ["install", source], args.dry_run, pi_home))
 
 
 def update(args: argparse.Namespace) -> None:
@@ -237,23 +301,12 @@ def update(args: argparse.Namespace) -> None:
     if not manifest or manifest.get("source") != source:
         fail("installer manifest source does not match this Cyberbrain clone")
     planned = planned_legacy_migrations(pi_home, repo_root, manifest)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    backup_root = pi_home / "backups" / "cyberbrain-pi" / timestamp
-    backup_and_remove(pi_home, backup_root, planned, args.dry_run)
-    if args.dry_run:
-        run_pi(args.pi_bin, ["update", "--extension", source], True)
-        return
-    try:
-        run_pi(args.pi_bin, ["update", "--extension", source], False)
-    except subprocess.CalledProcessError:
-        run_pi(args.pi_bin, ["install", source], False)
-    if planned:
-        manifest["backup_dir"] = str(backup_root)
-        manifest["migrated"] = sorted(set(manifest.get("migrated", [])) | {item["relative"] for item in planned})
-        for item in planned:
-            manifest.setdefault("legacy_hashes", {}).update(item["hashes"])
-    manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
-    atomic_json(manifest_path, manifest)
+    def command():
+        try:
+            run_pi(args.pi_bin, ["update", "--extension", source], args.dry_run, pi_home)
+        except subprocess.CalledProcessError:
+            run_pi(args.pi_bin, ["install", source], args.dry_run, pi_home)
+    migrate_and_run(args, manifest, planned, command)
 
 
 def doctor(args: argparse.Namespace) -> int:
@@ -266,6 +319,10 @@ def doctor(args: argparse.Namespace) -> int:
         issues.append("installer manifest missing")
     elif manifest.get("source") != source:
         issues.append("installer manifest points to a different Cyberbrain clone")
+    elif manifest.get("restoration_pending"):
+        issues.append("interrupted restoration; retry uninstall --restore-legacy")
+    elif manifest.get("migration_pending"):
+        issues.append("interrupted migration; retry install or uninstall --restore-legacy")
     if not settings_contains_source(pi_home, source):
         issues.append("cyberbrain-pi local package is not registered in settings.json")
     for relative in LEGACY_MAP:
@@ -280,12 +337,13 @@ def doctor(args: argparse.Namespace) -> int:
             issues.append(f"environment variable is not set: {variable}")
     tests = sorted(str(path) for path in (repo_root / "pi/test").glob("*.test.ts"))
     commands = [["node", "--test", *tests]] if tests else []
+    commands.extend([sys.executable, str(path)] for path in sorted((repo_root / "pi/test").glob("*.test.py")))
     for path in sorted((repo_root / "pi").glob("extensions/*.ts")):
         commands.append(["node", "--input-type=module", "-e", f"import '{path.resolve()}'"])
     for path in sorted((repo_root / "pi").glob("lib/**/*.ts")):
         commands.append(["node", "--input-type=module", "-e", f"import '{path.resolve()}'"])
     for command in commands:
-        result = subprocess.run(command)
+        result = subprocess.run(command, env={**os.environ, "PI_CODING_AGENT_DIR": str(pi_home)})
         if result.returncode != 0:
             issues.append("verification failed: " + " ".join(command))
     for issue in issues:
@@ -297,30 +355,64 @@ def doctor(args: argparse.Namespace) -> int:
     return 0
 
 
+def resources_match(source: Path, target: Path) -> bool:
+    """Recognize a completed restore without following symlinks or accepting edits."""
+    if source.is_symlink() or target.is_symlink():
+        return source.is_symlink() and target.is_symlink() and os.readlink(source) == os.readlink(target)
+    if source.is_file() and target.is_file():
+        return source.read_bytes() == target.read_bytes()
+    if source.is_dir() and target.is_dir():
+        names = {item.name for item in source.iterdir()}
+        return names == {item.name for item in target.iterdir()} and all(
+            resources_match(source / name, target / name) for name in names)
+    return False
+
+
+def restore_resource(source: Path, target: Path) -> None:
+    # Stage whole directories too: failed copies must not strand partial targets.
+    target.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".cyberbrain-restore-", dir=target.parent) as temporary:
+        staged = Path(temporary) / "resource"
+        copy_resource(source, staged)
+        if target.exists() or target.is_symlink():
+            fail(f"restore conflict: {target}")
+        staged.rename(target)
+
+
 def uninstall(args: argparse.Namespace) -> None:
     repo_root = Path(args.repo_root).resolve()
     pi_home = Path(args.pi_home).expanduser().resolve()
     source = package_source(repo_root)
     manifest_path = pi_home / ".cyberbrain-pi.manifest.json"
     manifest = load_manifest(manifest_path)
-    run_pi(args.pi_bin, ["remove", source], args.dry_run)
-    if args.restore_legacy and manifest and manifest.get("backup_dir"):
-        backup_root = Path(manifest["backup_dir"])
-        for relative in manifest.get("migrated", []):
-            source_path = backup_root / relative
-            target_path = pi_home / relative
-            if not source_path.exists() and not source_path.is_symlink():
-                continue
-            if target_path.exists() or target_path.is_symlink():
+    backups = legacy_backups(manifest) if args.restore_legacy else {}
+    resuming = bool(backups and (manifest or {}).get("restoration_pending"))
+    # Preflight the entire restoration before removing the registered package.
+    for relative, backup in backups.items():
+        source_path = Path(backup)
+        target_path = pi_home / relative
+        if not source_path.exists() and not source_path.is_symlink():
+            fail(f"backup missing: {source_path}; manifest retained")
+        if target_path.exists() or target_path.is_symlink():
+            if not resuming or not resources_match(source_path, target_path):
                 fail(f"restore conflict: {target_path}")
-            print(f"RESTORE {source_path} -> {target_path}")
-            if args.dry_run:
+    if backups and not args.dry_run:
+        manifest["restoration_pending"] = True
+        atomic_json(manifest_path, manifest)
+    # A previous removal may have succeeded before restoration or its process
+    # failed. Pi returns nonzero for already-removed packages; do not remove twice.
+    if not resuming or settings_contains_source(pi_home, source):
+        run_pi(args.pi_bin, ["remove", source], args.dry_run, pi_home)
+    for relative, backup in backups.items():
+        source_path = Path(backup)
+        target_path = pi_home / relative
+        if target_path.exists() or target_path.is_symlink():
+            if resuming and resources_match(source_path, target_path):
                 continue
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-            if source_path.is_dir() and not source_path.is_symlink():
-                shutil.copytree(source_path, target_path)
-            else:
-                shutil.copy2(source_path, target_path, follow_symlinks=False)
+            fail(f"restore conflict: {target_path}")
+        print(f"RESTORE {source_path} -> {target_path}")
+        if not args.dry_run:
+            restore_resource(source_path, target_path)
     if not args.dry_run:
         manifest_path.unlink(missing_ok=True)
 
@@ -330,7 +422,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("command", choices=("install", "update", "doctor", "uninstall"))
     result.add_argument("--dry-run", action="store_true")
     result.add_argument("--restore-legacy", action="store_true")
-    result.add_argument("--pi-home", default=str(Path.home() / ".pi/agent"))
+    result.add_argument("--pi-home", default=os.environ.get("PI_CODING_AGENT_DIR") or str(Path.home() / ".pi/agent"))
     result.add_argument("--pi-bin", default="pi")
     result.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[1]))
     return result

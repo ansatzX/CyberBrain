@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { agentDir } from "./agent-paths.ts";
 import { dirname, join } from "node:path";
 
 export interface GoalState {
@@ -77,7 +77,7 @@ export function errorBudget(): number {
 }
 
 function goalsDir(): string {
-	return process.env.PI_GOAL_TEST_DIR || join(homedir(), ".pi", "agent", "goals");
+	return process.env.PI_GOAL_TEST_DIR || join(agentDir(), "goals");
 }
 
 const EPHEMERAL_THREAD_ID = `ephemeral-${randomUUID()}`;

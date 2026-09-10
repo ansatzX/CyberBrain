@@ -9,6 +9,9 @@ Before invoking Pi, follow `../_shared/agent-cli.md`.
 
 ## Verify the installed interface
 
+Apply the shared protocol’s same-session reuse rules; these checks are needed
+for a new or changed executable, not automatically on each round.
+
 ```text
 pi --version
 pi --help
@@ -44,7 +47,7 @@ pi --session <path|id> --print "<prompt>"
 # Fork a session without touching the original
 pi --fork <path|id> --print "<prompt>"
 
-# Strongest read-only boundary: only the read tool stays enabled
+# Model-tool restriction: only the read tool stays enabled
 pi --print --tools read "<prompt>"
 
 # Ephemeral run that saves no session
@@ -58,7 +61,47 @@ other tool (bash, edit, write, and custom tools). If the task must be read-only
 and a bare read allowlist is too narrow, say so instead of weakening the
 allowlist.
 
+## Choose single-call or resumable execution
+
+For a bounded one-call task, use a verified command pattern above with the selected
+tool restriction. Capture stdout/stderr and exit status as in the shared protocol;
+no durable coordinator record is required if the task completes in this session.
+Pi may still write its own runtime session state unless the chosen mode disables it.
+
+Use the following loop only when the task needs multiple rounds, background work
+or a resumable handoff. Preserve an existing session’s exact tool boundary when
+continuing; the helper’s `read-only` preset enables `read,grep,find,ls` and must not
+be substituted for a narrower existing allowlist.
+
 ## Iterative resume loop
+
+After checking current help and authorization, use the bundled
+[round helper](scripts/run-round.sh) when its preset exactly matches the selected
+boundary. If an existing session has a narrower allowlist, use its verified direct
+resume command with that exact allowlist and the shared protocol’s durable logging
+instead. Preserve the exit status and do not widen tools to fit the helper.
+
+For a matching preset:
+
+```bash
+bash <skill-dir>/scripts/run-round.sh <target-dir> <log-dir> <session-id> <round> read-only <prompt-file>
+# For explicitly authorized edits, select workspace-write on the first round.
+```
+
+Resolve placeholders before running. Use `$TACHIKOMA_LOG_DIR` or the default
+`<target-dir>/.tachikoma/<task-slug>` for log-dir. The coordinator owns this
+directory; do not run simultaneous rounds against the same record. The helper
+appends stdout/stderr to session.log and returns Pi's exit status without replaying
+the raw output. Inspect a bounded excerpt (for example, the final 80 lines), then
+check relevant artifacts and write summary.md. Failure ends this round; do not
+retry with broader tools. A changed target/session/boundary is rejected.
+
+Here read-only describes the model tool allowlist. Pi session/log writes and
+ambient extension startup are outside that allowlist. Inspect extension side
+effects first; strict workspace immutability requires a verified external
+boundary or an appropriately isolated configuration. Do not assume --tools
+restricts arbitrary extension code. Workspace-write is an authorization label,
+not a Pi filesystem sandbox.
 
 Pi is the default coding agent in tachikoma. One `--print` run is one turn of a
 longer collaboration; do not assume a task finishes in one run. Loop until the
@@ -68,17 +111,14 @@ task is done, the run fails, or parent judgment is required:
    `tachikoma-<task-slug>`. Pass it as `--session-id` on every round. The id is
    the conversation handle: pi keeps its own context in the session file, not
    in this context.
-2. **Instruct, run, exit.** Each round is `pi --session-id <id> --print
-   "<next instruction>"`. The run stops when it finishes its turn; stdout is
-   the reply to read.
-3. **Read staged results.** Inspect the final response and the artifacts pi
-   wrote to the workspace (files, diffs, checkpoints). The workspace is the
-   shared ground truth between pi and this agent. Maintain the task record per
-   the shared protocol §6: append this round's output to `session.log` behind a
-   `===== round N <timestamp> =====` separator, and rewrite `summary.md` with a
-   round number and timestamp header — then deliver it by cating it into the
-   command stdout; the summary is the only file that may enter this context in
-   full.
+2. **Instruct, run, exit.** Use the matching helper preset or the exact-boundary
+   direct invocation above with the same target and session on every round. Inspect the saved final response and
+   exit status; stop on failure.
+3. **Read staged results.** Inspect the final response and relevant artifacts.
+   The helper already appends output to `session.log`; do not append it twice.
+   For a direct invocation, the coordinator captures and appends it once.
+   Update the durable summary per shared protocol §6 and return its concise
+   contents. Use bounded log excerpts for evidence, not transcript replay.
 4. **Judge, then instruct.** Done → report. More work → send the next focused
    instruction through the same session id. Stuck, failed, or needs a decision
    this agent cannot make → stop and report instead of guessing.
@@ -86,9 +126,11 @@ task is done, the run fails, or parent judgment is required:
    stop and report the exact state. Never silently restart with a new session
    to "retry from scratch" unless the user or parent says so.
 
-Communication contract: pi's concise final response and the workspace artifacts
-are the only channels read; never replay pi's raw transcript into this context.
-Report the session id so the parent can resume the same conversation later.
+Communication contract: inspect pi's concise final response, relevant workspace
+artifacts and bounded log excerpts when needed. Never replay the full transcript
+into this context.
+For resumable work, report the verified session id. For a completed one-call task,
+report a handle only if one is available; do not create one solely for reporting.
 
 ## Completion
 

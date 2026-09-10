@@ -14,7 +14,7 @@ qwen --version
 qwen --help
 ```
 
-Use `-p` / `--prompt` for non-interactive mode. The currently installed interface does not document `--approval-mode`, `auto-edit`, or `--yolo`; do not use or describe those options unless a future installed help output adds them.
+Use the installed help to select non-interactive syntax. At verification on 2026-09-07, positional prompts and `--approval-mode plan` are supported; `-p` is deprecated. Verify again before running, since releases differ. Plan mode is documented as analysis without file edits or command execution. Automatic modes (`auto-edit`, `auto`, `yolo`) require the execution authority described in the shared protocol.
 
 ## Model and execution boundary
 
@@ -25,17 +25,20 @@ Omit `--model` and `--fallback-model` unless the user explicitly requested suppo
 ## Command patterns
 
 ```bash
-# Non-interactive run with configured model settings
-qwen -p "<prompt>"
+# Read-only analysis after verifying plan mode in installed help
+qwen --approval-mode plan "<prompt>"
+
+# Non-interactive run within an established execution boundary
+qwen "<prompt>"
 
 # Structured output when needed
-qwen -p "<prompt>" --output-format json
+qwen "<prompt>" --output-format json
 
 # Continue the most recent session for the current project
-qwen --continue -p "<follow-up prompt>"
+qwen --continue "<follow-up prompt>"
 
 # Resume an identified session
-qwen --resume <session-id> -p "<follow-up prompt>"
+qwen --resume <session-id> "<follow-up prompt>"
 ```
 
 Use `--sandbox` only after explaining the installed behavior and confirming that it matches the requested boundary.

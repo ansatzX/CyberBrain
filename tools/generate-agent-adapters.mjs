@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -103,7 +103,7 @@ function bootstrapProfiles() {
 	console.log(`Bootstrapped ${tomlFiles.length} canonical role profiles in ${relative(repoRoot, profileDir)}.`);
 }
 
-function reconcileDirectory(directory, expected, suffix, check) {
+function planDirectory(directory, expected, suffix, check) {
 	const expectedByPath = new Map(expected.map((entry) => [entry.path, entry.content]));
 	const actualPaths = filesIn(directory, suffix).map((filename) => join(directory, filename));
 	const issues = [];
@@ -117,28 +117,35 @@ function reconcileDirectory(directory, expected, suffix, check) {
 	for (const filePath of actualPaths) {
 		if (!expectedByPath.has(filePath)) issues.push(`Unexpected generated file: ${relative(repoRoot, filePath)}`);
 	}
-	if (check) return issues;
-	if (issues.some((issue) => issue.startsWith("Unexpected"))) {
-		for (const filePath of actualPaths) {
-			if (expectedByPath.has(filePath)) continue;
+	const removals = actualPaths.filter((filePath) => !expectedByPath.has(filePath));
+	if (!check) {
+		for (const filePath of removals) {
 			const content = readFileSync(filePath, "utf8");
-			if (!content.startsWith(generatedHeader)) {
-				throw new Error(`Refusing to remove unmanaged file: ${relative(repoRoot, filePath)}`);
-			}
-			rmSync(filePath);
+			const name = basename(filePath, suffix);
+			const frontmatter = content.match(/^---\n([\s\S]*?)\n---\n/)?.[1].split("\n") ?? [];
+			const managed = suffix === ".toml" ? content.startsWith(generatedHeader) :
+				frontmatter.includes(`name: ${name}`) && frontmatter.includes("package: cyberbrain") &&
+				frontmatter.includes(`generatedFrom: plugins/awesome-agent-select/agent-profiles/${name}.md`);
+			if (!managed) throw new Error(`Refusing to remove unmanaged file: ${relative(repoRoot, filePath)}`);
 		}
 	}
-	mkdirSync(directory, { recursive: true });
-	for (const [filePath, content] of expectedByPath) writeFileSync(filePath, content);
-	return [];
+	return { issues, apply() {
+		for (const filePath of removals) rmSync(filePath);
+		mkdirSync(directory, { recursive: true });
+		for (const [filePath, content] of expectedByPath) writeFileSync(filePath, content);
+	} };
 }
 
 if (args.has("--bootstrap-from-codex")) bootstrapProfiles();
 
 const outputs = expectedOutputs();
-const codexIssues = reconcileDirectory(codexDir, outputs.map(({ codexPath: path, codexContent: content }) => ({ path, content })), ".toml", args.has("--check"));
-const piIssues = reconcileDirectory(piAgentsDir, outputs.map(({ piPath: path, piContent: content }) => ({ path, content })), ".md", args.has("--check"));
-const issues = [...codexIssues, ...piIssues];
+// Validate both hosts before changing either output directory.
+const plans = [
+	planDirectory(codexDir, outputs.map(({ codexPath: path, codexContent: content }) => ({ path, content })), ".toml", args.has("--check")),
+	planDirectory(piAgentsDir, outputs.map(({ piPath: path, piContent: content }) => ({ path, content })), ".md", args.has("--check")),
+];
+const issues = args.has("--check") ? plans.flatMap((plan) => plan.issues) : [];
+if (!args.has("--check")) for (const plan of plans) plan.apply();
 if (issues.length > 0) {
 	for (const issue of issues) console.error(issue);
 	process.exitCode = 1;

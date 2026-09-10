@@ -14,7 +14,7 @@ set -euo pipefail
 printf '%s\n' "$*" >> "$FAKE_PI_LOG"
 case "${1:-}" in
   install)
-    python3 - "$FAKE_PI_HOME/settings.json" "$2" <<'PY'
+    python3 - "$PI_CODING_AGENT_DIR/settings.json" "$2" <<'PY'
 import json, os, sys
 from pathlib import Path
 path=Path(sys.argv[1]); source=sys.argv[2]
@@ -27,12 +27,12 @@ path.write_text(json.dumps(data, indent=2)+'\n')
 PY
     ;;
   remove)
-    python3 - "$FAKE_PI_HOME/settings.json" "$2" <<'PY'
+    python3 - "$PI_CODING_AGENT_DIR/settings.json" "$2" <<'PY'
 import json, sys
 from pathlib import Path
 path=Path(sys.argv[1]); source=sys.argv[2]
 data=json.loads(path.read_text()) if path.exists() else {}
-data['packages']=[item for item in data.get('packages', []) if item != source]
+data['packages']=[item for item in data.get('packages', []) if (path.parent / item).resolve() != Path(source).resolve()]
 path.write_text(json.dumps(data, indent=2)+'\n')
 PY
     ;;
@@ -41,7 +41,7 @@ EOF
 chmod +x "$TMP/bin/pi"
 
 run() {
-  FAKE_PI_LOG="$FAKE_LOG" FAKE_PI_HOME="$PI_HOME" \
+  FAKE_PI_LOG="$FAKE_LOG" AIHUBMIX_API_KEY=test DEEPSEEK_API_KEY=test \
     bash "$REPO_ROOT/tools/manage-pi.sh" "$@" \
     --pi-home "$PI_HOME" --pi-bin "$TMP/bin/pi" --repo-root "$REPO_ROOT"
 }
@@ -68,5 +68,6 @@ run doctor
 run uninstall --restore-legacy
 grep -q "remove $REPO_ROOT/pi" "$FAKE_LOG"
 test -e "$PI_HOME/extensions/goal.ts"
+grep -q '"packages": \[\]' "$PI_HOME/settings.json"
 
 echo "manage-pi integration tests passed"

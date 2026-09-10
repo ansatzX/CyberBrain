@@ -11,9 +11,11 @@
 //    往返校验，写入后重读校验；任何一步失败都会尽量恢复 .bak。
 // 4. 每次真实更新前把旧文件复制为 models.json.bak 作为回滚点。
 
-import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { copyFile, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { setTimeout as delay } from "node:timers/promises";
+import { basename, dirname, join } from "node:path";
+import { agentDir } from "../agent-paths.ts";
 
 export type ProviderConfig = Record<string, unknown>;
 
@@ -39,9 +41,7 @@ function asError(error: unknown): Error {
 export function defaultModelsJsonPath(
 	environment: Record<string, string | undefined>,
 ): string {
-	const agentDir = environment.PI_CODING_AGENT_DIR?.trim() ||
-		join(homedir(), ".pi", "agent");
-	return join(agentDir, "models.json");
+	return join(agentDir(environment), "models.json");
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -117,6 +117,34 @@ export async function refreshModelsJsonProvider(
 	options: RefreshOptions,
 	dependencies: ModelsJsonDependencies = {},
 ): Promise<RefreshResult> {
+	assertValidProviderConfig(options.providerId, options.config);
+	await mkdir(dirname(options.path), { recursive: true });
+	const path = join(await realpath(dirname(options.path)), basename(options.path));
+	const lockPath = `${path}.lock`;
+	const deadline = Date.now() + 5_000;
+	for (;;) {
+		try {
+			await mkdir(lockPath);
+			break;
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+			if (Date.now() >= deadline) {
+				throw new Error(`Timed out waiting for ${lockPath}; if a writer crashed, remove the lock after stopping all writers.`);
+			}
+			await delay(25);
+		}
+	}
+	try {
+		return await refreshLocked({ ...options, path }, dependencies);
+	} finally {
+		await rm(lockPath, { recursive: true, force: true });
+	}
+}
+
+async function refreshLocked(
+	options: RefreshOptions,
+	dependencies: ModelsJsonDependencies,
+): Promise<RefreshResult> {
 	const readFileImpl = dependencies.readFileImpl ?? readFile;
 	const writeFileImpl = dependencies.writeFileImpl ?? writeFile;
 	const renameImpl = dependencies.renameImpl ?? rename;
@@ -166,7 +194,7 @@ export async function refreshModelsJsonProvider(
 	}
 
 	await mkdirImpl(dirname(path), { recursive: true });
-	const temporaryPath = `${path}.${process.pid}.${Date.now()}.tmp`;
+	const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
 	const backupPath = `${path}.bak`;
 
 	try {
@@ -175,11 +203,8 @@ export async function refreshModelsJsonProvider(
 			mode: 0o600,
 		});
 		if (existed) {
-			try {
-				await copyFileImpl(path, backupPath);
-			} catch {
-				// 备份失败不阻断主流程；原子写入本身已保证不截断旧文件。
-			}
+			// Do not replace the file unless this transaction has a valid rollback copy.
+			await copyFileImpl(path, backupPath);
 		}
 		await renameImpl(temporaryPath, path);
 	} catch (error) {

@@ -1,350 +1,83 @@
 ---
 name: state-machine
-description: "Always-active project-state foundation for primary agents and subagents. Use to create a working-directory-local state node, track claim-bearing state transitions, and escalate from lightweight ledger entries to an explicit state machine for long, ordered, resumable, or multi-agent work."
+description: "Track meaningful project changes and verification, using an internal check for read-only tasks and a local ledger or state DAG when recovery and ordering matter."
 ---
 
 # State Machine
 
-Use this skill in every agent or subagent that may inspect, modify, summarize, or declare completion over project state. Coding, data processing, refactoring, analysis, file packaging, CI fixes, report generation, and multi-step research workflows all qualify.
+Choose the recording level by the consequences of state changes. The record
+supports evidence; it is not a prerequisite for every answer.
 
-Core principle: **state transitions make claims**. A transition that is not recorded cannot support a strong completion claim.
-
-## Effort Levels
-
-Always run the state-machine check, but scale the artifact:
-
-| Level | Use When | Required Artifact |
+| Level | When | Artifact |
 | --- | --- | --- |
-| `L0 internal` | Purely conversational, read-only, or no project state changes. | No file. Keep the state check internal. |
-| `L1 node` | One agent performs ordinary work with meaningful transitions or a completion claim. | One `.state-machine/<node-id>.md` file. |
-| `L2 gated` | Ordered correctness gates exist: source before transform, transform before artifact, verification before claim. | State node with explicit states, gate evidence, and progress matrix. |
-| `L3 coordinated` | Multiple agents, resumable work, high-risk state, or user-visible correctness claims. | State-node DAG, role separation, object drift checks, and completion matrix. |
+| L0 | Conversation, read-only inspection, or a simple lookup | Internal check; no file or task creation |
+| L1 | Ordinary changes with meaningful verification | One local state node |
+| L2 | Ordered source/transform/verification gates | Node with explicit gate evidence |
+| L3 | Resumable or coordinated changes | Nodes with dependency edges and ownership |
 
-Do not choose a lower level because the task feels easy. Choose by state risk: how much later reasoning will depend on this transition being correct.
+**L0 is exempt from all ledger, state-file, script-record and completion-entry
+requirements below.** A read-only review may reach an evidence-backed conclusion
+and end without creating files. Cite inspected evidence and disclose limits in
+the answer. Do not escalate merely because you will summarize findings.
 
-## Always-On Start
+## Local node (L1 and above)
 
-At the start of work:
-
-1. Identify the current agent working directory. State records must stay inside that directory or its writable workspace; do not write outside the sandbox.
-2. Assign a stable node id for this agent or subagent, such as `root`, `codex-main`, `worker-auth`, or `explorer-logs`.
-3. Choose effort level `L0` through `L3`.
-4. Create or update this agent's own state node for `L1` and above.
-5. If the task is `L0`, do not create a file; keep the state check internal and do not claim state changed.
-6. Subagents write their own state node, not the parent's file. Each child node declares one or more parent nodes at the top. The parent may summarize child nodes later, but children never edit parent state.
-
-## Claim-Bearing Actions
-
-Record an entry before or immediately after any meaningful action that:
-
-- **Selects** an authority source, file, API, dataset, config, branch, or log.
-- **Transforms** state by parsing, converting, filtering, aggregating, normalizing, refactoring, or migrating.
-- **Substitutes** one implementation, source, function, model, dependency, or fallback for another.
-- **Summarizes** detailed state into a conclusion, report, metric, chart, issue, or PR comment.
-- **Stores** an intermediate artifact, cache, export, generated file, checkpoint, or packaged result.
-- **Deletes / ignores** state that could affect the object.
-- **Presents** state through a table, figure, UI, visualization, or natural-language claim.
-- **Completes** work by saying done, fixed, passing, reproduced, migrated, or ready.
-
-Purely mechanical reads and formatting-only edits do not require a ledger entry unless the result is used as evidence for a claim. If unsure, record a short entry.
-
-## State File Location
-
-Records live in the current agent working directory, not in global agent config and not outside the sandbox.
-
-Default directory:
+Use `.state-machine/<node-id>.md` inside the current workspace or its existing
+state-record convention. Each agent owns its own node; children reference their
+parents and never edit a parent's node. Use an internal record if writes are
+not authorized; do not request write access just for bookkeeping.
 
 ```text
-./.state-machine/
-```
-
-Default node file:
-
-```text
-./.state-machine/<node-id>.md
-```
-
-If the project already has a local state-machine convention, use that path and note it. The state file belongs to the working directory under the current agent's control. If the object being modified lives elsewhere, record the external path as state being acted on, but keep the state node in the working directory.
-
-Initialize new files with:
-
-```text
-# State Node
-
 Node ID:
-Parent Nodes:
-- none | <relative path to parent node>
+Parent Nodes: none | dependency paths
 Working Directory:
-Object:
-Current State: DISCOVERED
-State Owner Role:
-Last Updated:
-
-## Child Nodes
-
-- None
-
-## Open Gaps
-
-- Unknown
-
-## Evidence Register
-
-- Unknown
-
-## Transitions
-```
-
-## State DAG
-
-State nodes form a directed acyclic graph, not necessarily a tree.
-
-- A node may have multiple parents when work depends on multiple upstream agents, specs, reviews, or evidence streams.
-- A node may have multiple children when a task is split across agents or subtasks.
-- A child must declare all known parents in `Parent Nodes`.
-- A parent does not have to know every child immediately; stale parent `Child Nodes` are acceptable.
-- Edges point from parent dependency to child work product.
-- Cycles are invalid. If a node depends on later work, record it as an open gap instead of creating a cycle.
-
-When declaring an edge, include the relationship when it matters:
-
-```text
-Parent Nodes:
-- path: .state-machine/root.md
-  relation: spawned-by | depends-on | verifies | summarizes | supersedes
-```
-
-Use `Child Nodes` as a convenience index, not as authority. The authoritative edge is the child's `Parent Nodes` declaration.
-
-## Lightweight Ledger Protocol
-
-For ordinary work, add one entry per meaningful transition:
-
-```text
-## T001 - Short Title
-
-Before State:
-Action:
-After State:
-Implicit Claim:
-Authority:
-Representation / Proxy:
-Lost Information:
-Evidence IDs:
-Evidence Quality: authority | direct | proxy | absence | human | mixed
-Failure Mode:
-Verification:
-Object Drift: none | possible | changed
-Status: proposed | exploratory | blocked | verified | superseded
-```
-
-Keep entries concise. Use `Unknown` rather than inventing. `Unknown` may be acceptable for exploratory work, but it cannot support a strong completion claim.
-
-## Evidence Quality Ladder
-
-Classify evidence before using it to advance state:
-
-| Quality | Meaning | May advance to `VERIFIED`? |
-| --- | --- | --- |
-| `authority` | Source-of-truth record: spec, command log, schema, notebook cell, API contract, test oracle, user-approved requirement. | Yes, if applicable and checked. |
-| `direct` | Inspected artifact, exact output, trace, diff, rendered screenshot, opened file, executed test result. | Yes, when it directly matches the claim layer. |
-| `proxy` | Filename, directory name, convention, heuristic, similarity, model guess, inferred pattern. | No. It supports only `exploratory`. |
-| `absence` | Search or inspection found no contrary reference. | No by itself. It can support gaps or risk notes. |
-| `human` | User correction, review, endorsement, or domain judgment. | Yes for the scope the human explicitly endorsed. |
-| `mixed` | Multiple evidence types. | Only if the authority/direct/human evidence is sufficient without relying on proxy evidence. |
-
-Hard rule: proxy evidence cannot justify `VERIFIED`, `CLAIM_READY`, or completion. If authority and proxy conflict, authority wins unless the user explicitly overrides it.
-
-
-### Durable Local Scripts
-
-Do not run meaningful scripts by piping heredocs or long inline commands directly into interpreters such as `python`, `python3`, `bash`, `node`, or `ruby`.
-
-This is especially forbidden for code that reads project artifacts, transforms data, validates outputs, generates reports, inspects logs, mutates files, or supports a later claim. A terminal transcript is not enough provenance for the script's assumptions, exact code, inputs, outputs, and interpretation boundary.
-
-Before running any non-trivial script or complex shell operation, write it to the current working directory under:
-
-```text
-./.scripts/
-```
-
-Use a distinctive timestamped name:
-
-```text
-YYYYMMDD-HHMMSS-<purpose>.py
-YYYYMMDD-HHMMSS-<purpose>.sh
-```
-
-Keep the script after execution. Do not delete it as cleanup unless the user explicitly asks and the state record preserves why deletion is safe.
-
-When `brain:state-machine` is active at `L1` or above, record the script in the state node:
-
-```text
-Script Path:
-Script Responsibility:
-Inputs / Authority:
-Outputs / Derived State:
-Boundary:
-Owner Role:
-Verification:
-```
-
-The script is part of the evidence chain. If it is not durable, its output should be treated as exploratory rather than verified.
-
-## Role And Authority Separation
-
-Use roles instead of vague ownership:
-
-| Role | May Do |
-| --- | --- |
-| `observer` | Record observations, evidence, unknowns, and risks. |
-| `actor` | Record actions taken and artifacts generated. |
-| `verifier` | Mark a transition or progress layer as verified, with evidence. |
-| `coordinator` | Advance the parent/global state after reviewing child nodes. |
-| `human-owner` | Endorse domain judgment, tacit knowledge, final acceptance, or user-only gates. |
-
-Subagents default to `observer` and `actor` for their own node. They should not advance a parent/global node to `VERIFIED` or `CLAIM_READY` unless explicitly assigned the `verifier` or `coordinator` role.
-
-## Object Drift Check
-
-Before state advances to `VERIFIED`, `CLAIM_READY`, or completion, check:
-
-```text
-Original Object:
-Current Object:
-Changed: no | possible | yes
-Drift Evidence:
-Approval / Owner:
-Action:
-```
-
-If `Changed` is `possible` or `yes`, do not advance the state until the drift is resolved or explicitly approved. Local engineering progress does not justify object drift.
-
-## Base-Case Check: Dataflow And Coding
-
-The retrospective failure mode this skill must prevent is: local coding progress creates artifacts while the object, authority source, and verification drift.
-
-For any dataflow or coding transition, explicitly distinguish:
-
-- **Authority state**: the source of truth being read or followed.
-- **Derived state**: files, caches, exports, generated code, figures, reports, or summaries produced from it.
-- **Boundary**: what the derived state is allowed to mean.
-- **Substitution**: whether an implementation, data source, or analysis function was replaced.
-- **Equivalence evidence**: why the substitute is equivalent; if absent, mark it as deviation.
-
-Default statuses:
-
-- Authority not checked -> `blocked` or `exploratory`.
-- Derived artifact exists but verification is missing -> `exploratory`.
-- Substitute lacks equivalence evidence -> `exploratory` or `blocked`, not `verified`.
-- Final output differs from target without explanation -> `blocked`.
-
-## State Machine Escalation
-
-Add a lightweight state machine section when the task is long, ordered, resumable, correctness-sensitive, or involves multiple agents/tools mutating the same object.
-
-Escalation is mandatory when a task has ordered correctness gates, such as source mapping before transformation, transformation before artifact generation, or verification before completion.
-
-```text
-# Task State
-
-Object:
+Object and requested outcome:
+State Owner:
 Current State:
-
-Allowed States:
-- DISCOVERED
-- SOURCES_MAPPED
-- TRANSFORMS_SPECIFIED
-- ARTIFACTS_GENERATED
-- VERIFIED
-- CLAIM_READY
-
-Invalid Jumps:
-- DISCOVERED -> CLAIM_READY
-- DISCOVERED -> ARTIFACTS_GENERATED
-- ARTIFACTS_GENERATED -> CLAIM_READY
+Open Gaps:
+Evidence Register:
 ```
 
-Use domain-appropriate state names. The point is not the specific labels; the point is to make forbidden shortcuts visible.
-
-When moving between states, record:
+Record meaningful selection, transformation, substitution, deletion or completion
+as a concise entry. Batch mechanical reads; do not log every command separately.
 
 ```text
-## State Advance
-
-From:
-To:
-Transition IDs:
-Gate Evidence:
-Known Gaps:
-Owner:
+Before -> After:
+Action and authority:
+Evidence and verification:
+Lost information / failure mode:
+Object drift: none | possible | changed
+Status: exploratory | verified | blocked | superseded
 ```
 
-Gate examples:
+Evidence may be source authority, direct observation, user endorsement, proxy or
+absence. A proxy or unsuccessful search alone does not verify a stronger claim.
+Use Unknown instead of inventing evidence. Keep execution success distinct from
+numerical, scientific, visual or operational correctness.
 
-- `SOURCES_MAPPED`: authority sources are named and checked.
-- `TRANSFORMS_SPECIFIED`: transformations and substitutions are named; deviations are marked.
-- `ARTIFACTS_GENERATED`: derived artifacts exist and their boundary is recorded.
-- `VERIFIED`: verification matches the claim layer.
-- `CLAIM_READY`: completion evidence exists and known gaps are stated.
+## Gates and coordination
 
-Before entering `VERIFIED` or `CLAIM_READY`, run the object drift check and progress matrix. These are gates, not optional notes.
+For L2/L3, use domain-specific states such as DISCOVERED -> SOURCES_MAPPED ->
+TRANSFORMED -> VERIFIED -> CLAIM_READY. Each advance names its gate evidence.
+Do not jump from an artifact existing to its correctness being verified.
 
-## Progress Matrix
+Keep dependencies acyclic. Assign source-of-truth ownership, write scopes,
+verification responsibility and cleanup responsibility explicitly. A substitute
+needs equivalence evidence; otherwise report the deviation. If the object drifts
+from the user's goal, resolve that before claiming completion.
 
-Use a matrix when "done" has multiple layers. Each layer is `not-required`, `pending`, `passed`, `failed`, or `unknown`.
+Store non-trivial ad hoc scripts under `.scripts/<timestamp>-<purpose>` when
+they support reproducibility; repository scripts and tests already have durable
+paths and need no duplicate. Record inputs, purpose, outputs and verification.
+Routine shell commands and short exploratory probes need no wrapper script.
 
-```text
-Programming:
-Data / State:
-Operational:
-Numerical:
-Scientific:
-Visual:
-Human Review:
-```
+## Completion (L1 and above only)
 
-Only layers marked `passed` or `not-required` can support completion. If a layer is `unknown`, say what claim remains unsupported.
+Record requested outcome, observed result, verification commands/evidence,
+unresolved gaps, cleanup owner and drift check. Mark each relevant layer passed,
+failed, unknown or not-required. A pending layer prevents claiming that layer
+complete; it need not prevent reporting a narrower verified result.
 
-## Hard Rules
-
-- No ledger entry -> no strong claim from that transition.
-- No authority -> transition is exploratory, not verified.
-- No verification -> do not call the resulting state done.
-- Substitution without equivalence evidence -> deviation, not replacement.
-- Lost information not named -> downstream consumers must not assume preservation.
-- Derived artifacts do not prove authority alignment.
-- Proxy evidence cannot advance state beyond exploratory.
-- Object drift blocks verification until resolved or explicitly approved.
-- Completion is a final transition, not a conversational flourish.
-
-## Completion Entry
-
-Before saying work is complete, add or update a final entry:
-
-```text
-## Completion
-
-Target State:
-Observed State:
-Evidence IDs:
-Evidence Quality:
-Verification Layer: programming | numerical | scientific | operational | visual | human-review
-Progress Matrix:
-Known Gaps:
-Responsibility Role:
-Object Drift Check:
-Narrow Claim:
-Status: verified | exploratory | blocked
-```
-
-If verification only proves that code ran, say so. Do not use programming verification as evidence of numerical, scientific, operational, or visual correctness.
-
-## Relationship To Other Brain Skills
-
-- Use `using-ansatz-brain` to decide when this skill is needed.
-- Use `whole-object-responsibility` when the whole system, ownership, failure path, or cleanup chain is unclear.
-- Use `think-before-you-calculate` before running calculations, simulations, searches, benchmarks, training, or other tool-heavy workflows.
-- Use `epistemic-systems-audit` when judging scientific claims, benchmark evidence, or paper claims.
-
-This skill records the state transitions those skills reason about.
+Then give the user the result, changes, tests and material limits. Stop at the
+authorized outcome. Do not recursively audit the audit record or create another
+state node solely to record this completion entry.

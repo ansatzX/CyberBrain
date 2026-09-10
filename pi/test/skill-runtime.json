@@ -1,0 +1,6 @@
+{
+  "package": "pi-subagents",
+  "version": "0.53.0",
+  "dependencies": { "jiti": "2.7.0", "yaml": "2.8.3", "typebox": "1.1.38", "acorn": "8.18.0" },
+  "verifiedDate": "2026-09-07"
+}

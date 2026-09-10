@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readdirSync, readFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -12,6 +13,46 @@ const profileDir = resolve(repoRoot, "plugins/awesome-agent-select/agent-profile
 const codexDir = resolve(repoRoot, "plugins/awesome-agent-select/agents");
 const piAgentsDir = resolve(piRoot, "subagents/awesome-agent-select");
 const generator = resolve(repoRoot, "tools/generate-agent-adapters.mjs");
+
+function fixture(run: (root: string) => void) {
+	const root = mkdtempSync(resolve(tmpdir(), "agent-adapter-test-"));
+	try {
+		mkdirSync(resolve(root, "tools"));
+		cpSync(generator, resolve(root, "tools/generate-agent-adapters.mjs"));
+		cpSync(resolve(repoRoot, "plugins/awesome-agent-select"), resolve(root, "plugins/awesome-agent-select"), { recursive: true });
+		cpSync(resolve(piRoot, "subagents"), resolve(root, "pi/subagents"), { recursive: true });
+		run(root);
+	} finally { rmSync(root, { recursive: true, force: true }); }
+}
+
+test("renaming and deleting canonical roles reconciles both hosts", () => {
+	fixture((root) => {
+		const profiles = resolve(root, "plugins/awesome-agent-select/agent-profiles");
+		renameSync(resolve(profiles, "api-documenter.md"), resolve(profiles, "api-writer.md"));
+		rmSync(resolve(profiles, "qa-expert.md"));
+		const script = resolve(root, "tools/generate-agent-adapters.mjs");
+		execFileSync(process.execPath, [script]);
+		execFileSync(process.execPath, [script, "--check"]);
+		for (const [dir, suffix] of [["plugins/awesome-agent-select/agents", ".toml"], ["pi/subagents/awesome-agent-select", ".md"]]) {
+			assert.ok(existsSync(resolve(root, dir, `api-writer${suffix}`)));
+			assert.ok(!existsSync(resolve(root, dir, `api-documenter${suffix}`)));
+			assert.ok(!existsSync(resolve(root, dir, `qa-expert${suffix}`)));
+		}
+	});
+});
+
+test("unmanaged Pi output blocks generation before Codex files are changed", () => {
+	fixture((root) => {
+		const codex = resolve(root, "plugins/awesome-agent-select/agents/api-documenter.toml");
+		const original = readFileSync(codex, "utf8");
+		rmSync(resolve(root, "plugins/awesome-agent-select/agent-profiles/api-documenter.md"));
+		const unmanaged = resolve(root, "pi/subagents/awesome-agent-select/custom.md");
+		writeFileSync(unmanaged, "user instructions");
+		assert.throws(() => execFileSync(process.execPath, [resolve(root, "tools/generate-agent-adapters.mjs")], { stdio: "pipe" }), /Refusing to remove unmanaged file/);
+		assert.equal(readFileSync(codex, "utf8"), original);
+		assert.equal(readFileSync(unmanaged, "utf8"), "user instructions");
+	});
+});
 
 const names = (directory: string, suffix: string) => readdirSync(directory)
 	.filter((name) => name.endsWith(suffix))

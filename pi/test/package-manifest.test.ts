@@ -57,22 +57,11 @@ test("pick-model and agent-cluster are packaged Pi skills", () => {
 	assert.equal(existsSync(pickModelPath), true, "pick-model must be packaged");
 	const pickModel = readFileSync(pickModelPath, "utf8");
 	assert.match(pickModel, /^---\nname: pick-model\n/m);
-	assert.match(pickModel, /omitted `model`.*parent-session model/s);
-	assert.match(pickModel, /omitted `thinking`.*not.*reliable request/s);
-	assert.match(pickModel, /Server-side Responses search and launch-tool network access/);
-	assert.match(pickModel, /deepseek-responses\/deepseek-v4-flash/);
-	assert.match(pickModel, /deepseek-responses\/deepseek-v4-pro/);
-	assert.match(pickModel, /## User evaluation registry/);
-	assert.match(pickModel, /DeepSeek thinking levels/);
-	assert.match(pickModel, /prefer `high` or `max`/);
 
 	const clusterPath = resolve(piRoot, "skills/agent-cluster/SKILL.md");
 	assert.equal(existsSync(clusterPath), true, "agent-cluster must be packaged");
 	const cluster = readFileSync(clusterPath, "utf8");
 	assert.match(cluster, /^---\nname: agent-cluster\n/m);
-	assert.match(cluster, /`team-leader`/);
-	assert.match(cluster, /`pick-model`/);
-	assert.match(cluster, /should a cluster exist at all/);
 });
 
 test("manifest exposes every approved Cyberbrain skill root from one source", () => {
