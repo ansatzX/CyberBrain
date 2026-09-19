@@ -5,18 +5,37 @@ description: "Use when installing, reinstalling, auditing, or preparing Brain-ma
 
 # Tame Dev Workflows
 
-Install Brain-managed copies of Superpowers, Spec Kit, and OpenSpec under `.brain/vendor`.
+Inspect or install Brain-managed copies of Superpowers, Spec Kit, and OpenSpec under `.brain/vendor`.
 
-Superpowers is sourced from the exact installed official Codex marketplace plugin version, not from the older public GitHub release tag. Install or refresh Superpowers through Codex `/plugins` before running this skill.
+## Choose the authorized mode first
+
+- **Audit / inspect / review:** read the existing paths under Inspect and the
+  bundled scripts. Report missing files, versions, conflicts and proposed changes.
+  Do not run either installer, initialize tools, refresh plugins, or create paths.
+  Missing dependencies are findings, not permission to install them.
+- **Install / reinstall / prepare:** confirm that the request authorizes writes
+  and resolve the exact project root before using Run or Tame. Inspect existing
+  destinations first. The current scripts overwrite files and delete selected
+  directories; they have no ownership manifest, conflict handling, or rollback.
+  Do not run them over existing assets until those exact replacements are
+  authorized and recoverable backups are made. Reinstallation is not permission
+  to discard user modifications. Prefer staging and a reviewed merge on an
+  existing project; stop if file ownership is unclear.
+
+Use the active host's installed documentation to check any generated Codex
+agent discovery behavior before publishing project-scoped agents. On Pi, this
+skill does not make those Codex agents into Pi subagents.
+
+Superpowers is sourced from the exact installed official Codex marketplace plugin version, not from the older public GitHub release tag. In installation mode only, a missing or mismatched version may require a separately authorized marketplace install or refresh; auditing must report it without changing it.
 
 Resolve `<skill-dir>` to this skill folder. Scripts accept an optional project root as their first argument.
 
 ## Run
 
-Run the bundled installer from the target project:
+In authorized installation mode, run the bundled installer with the resolved target project:
 
 ```sh
-<skill-dir>/scripts/install-vendor.sh
+<skill-dir>/scripts/install-vendor.sh /absolute/target/project
 ```
 
 Spec Kit deliberately uses Codex integration here because this skill vendors raw upstream surfaces for later Brain taming.
@@ -24,17 +43,18 @@ Dependency installers use their default locations; only uv's cache is pinned to 
 
 ## Tame
 
-Expose only Brain-approved project surfaces:
+In authorized installation mode, expose only Brain-approved project surfaces:
 
 ```sh
-<skill-dir>/scripts/tame-project.sh
+<skill-dir>/scripts/tame-project.sh /absolute/target/project
 ```
 
 Use project-scoped Codex custom agents at `.codex/agents/*.toml`; do not write these to `~/.codex/agents`.
 
 ## Inspect
 
-After running, inspect raw consumable surfaces:
+For a read-only audit, inspect these paths directly without running either script.
+After an authorized installation, inspect the same paths to verify the result:
 
 ```text
 .brain/vendor/superpowers/.codex-plugin/plugin.json

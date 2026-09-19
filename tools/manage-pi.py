@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
+from functools import wraps
 import hashlib
 import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -56,6 +59,49 @@ def fail(message: str) -> None:
     raise SystemExit(f"Error: {message}")
 
 
+def checked_path(root: Path, path: Path, *, allow_leaf_link: bool = False) -> Path:
+    """Reject lexical escapes and symlink parents; never resolve through them."""
+    try:
+        relative = path.relative_to(root)
+    except ValueError:
+        fail(f"path outside managed directory: {path}")
+    if not relative.parts or any(part in (".", "..") for part in relative.parts):
+        fail(f"invalid managed path: {path}")
+    current = root
+    for index, part in enumerate(relative.parts):
+        current = current / part
+        leaf = index == len(relative.parts) - 1
+        if current.is_symlink() and not (leaf and allow_leaf_link):
+            fail(f"symlink in managed path: {current}")
+    return path
+
+
+def locked_operation(operation):
+    @wraps(operation)
+    def run(args):
+        home = Path(args.pi_home).expanduser().resolve()
+        if home in (Path('/'), Path.home().resolve(), Path(args.repo_root).resolve()):
+            fail(f"refusing broad directory as Pi home: {home}")
+        if args.dry_run:
+            return operation(args)
+        home.mkdir(parents=True, exist_ok=True)
+        lock = checked_path(home, home / '.cyberbrain-pi.lock')
+        fd = os.open(lock, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
+        try:
+            info = os.fstat(fd)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                fail(f"invalid installer lock: {lock}")
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                fail(f"another installer operation is running: {home}")
+            # Keep the inode: unlinking a flock file can allow two lock owners.
+            return operation(args)
+        finally:
+            os.close(fd)
+    return run
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -66,11 +112,20 @@ def sha256_file(path: Path) -> str:
 
 def relative_files(path: Path) -> list[Path]:
     if not path.is_dir():
+        if not path.is_file():
+            fail(f"unmanaged conflict: missing or special resource {path}")
         return [Path(path.name)]
-    return sorted(item.relative_to(path) for item in path.rglob("*") if item.is_file())
+    entries = list(path.rglob("*"))
+    if any(item.is_symlink() or not (item.is_file() or item.is_dir()) for item in entries):
+        fail(f"unmanaged conflict: nested link or special file in {path}")
+    files = sorted(item.relative_to(path) for item in entries if item.is_file())
+    if not files:
+        fail(f"unmanaged conflict: empty resource directory {path}")
+    return files
 
 
 def load_manifest(path: Path) -> dict | None:
+    checked_path(path.parent, path)
     if not path.exists():
         return None
     try:
@@ -79,6 +134,25 @@ def load_manifest(path: Path) -> dict | None:
         fail(f"invalid installer manifest {path}: {error}")
     if not isinstance(value, dict) or value.get("version") != MANIFEST_VERSION:
         fail(f"unsupported installer manifest: {path}")
+    if not isinstance(value.get("source"), str) or not Path(value['source']).is_absolute():
+        fail(f"invalid manifest source: {path}")
+    for field in ('legacy_backups', 'legacy_hashes'):
+        if not isinstance(value.get(field, {}), dict):
+            fail(f"invalid manifest {field}: {path}")
+    migrated = value.get('migrated', [])
+    if not isinstance(migrated, list) or any(not isinstance(key, str) or key not in LEGACY_MAP for key in migrated):
+        fail(f"invalid manifest resource list: {path}")
+    if 'backup_dir' in value and not isinstance(value['backup_dir'], str):
+        fail(f"invalid manifest backup_dir: {path}")
+    backup_root = path.parent / 'backups' / 'cyberbrain-pi'
+    checked_path(path.parent, backup_root)
+    for relative, backup in legacy_backups(value).items():
+        if relative not in LEGACY_MAP or not isinstance(backup, str):
+            fail(f"invalid manifest backup entry: {relative}")
+        checked_path(backup_root, Path(backup), allow_leaf_link=True)
+    for key, digest in value.get('legacy_hashes', {}).items():
+        if not isinstance(key, str) or Path(key).is_absolute() or '..' in Path(key).parts or not isinstance(digest, str):
+            fail(f"invalid manifest hash entry: {path}")
     return value
 
 
@@ -117,7 +191,7 @@ def planned_legacy_migrations(pi_home: Path, repo_root: Path, manifest: dict | N
     planned: list[dict] = []
     conflicts: list[str] = []
     for relative in LEGACY_MAP:
-        source = pi_home / relative
+        source = checked_path(pi_home, pi_home / relative, allow_leaf_link=True)
         if not source.exists() and not source.is_symlink():
             continue
         nested_files = relative_files(source)
@@ -158,12 +232,12 @@ def run_pi(pi_bin: str, arguments: list[str], dry_run: bool, pi_home: Path) -> N
 
 def backup_legacy(pi_home: Path, backup_root: Path, planned: list[dict]) -> None:
     for item in planned:
-        source = pi_home / item["relative"]
+        source = checked_path(pi_home, pi_home / item["relative"], allow_leaf_link=True)
         target = backup_root / item["relative"]
         print(f"BACKUP {source} -> {target}")
         target.parent.mkdir(parents=True, exist_ok=True)
         if source.is_dir() and not source.is_symlink():
-            shutil.copytree(source, target)
+            shutil.copytree(source, target, symlinks=True)
         else:
             shutil.copy2(source, target, follow_symlinks=False)
 
@@ -181,7 +255,7 @@ def legacy_backups(manifest: dict | None) -> dict[str, str]:
 def copy_resource(source: Path, target: Path) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     if source.is_dir() and not source.is_symlink():
-        shutil.copytree(source, target)
+        shutil.copytree(source, target, symlinks=True)
     else:
         shutil.copy2(source, target, follow_symlinks=False)
 
@@ -200,7 +274,7 @@ def migrate_and_run(args: argparse.Namespace, old_manifest: dict | None,
     backups = legacy_backups(old_manifest)
     backup_root = None
     if planned:
-        parent = pi_home / "backups" / "cyberbrain-pi"
+        parent = checked_path(pi_home, pi_home / "backups" / "cyberbrain-pi")
         parent.mkdir(parents=True, exist_ok=True)
         backup_root = Path(tempfile.mkdtemp(
             prefix=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-"), dir=parent))
@@ -208,6 +282,10 @@ def migrate_and_run(args: argparse.Namespace, old_manifest: dict | None,
         backup_legacy(pi_home, backup_root, planned)
         for item in planned:
             backups[item["relative"]] = str(backup_root / item["relative"])
+        # Refuse edits occurring between preflight and backup/deletion.
+        current = planned_legacy_migrations(pi_home, Path(args.repo_root).resolve(), old_manifest)
+        if current != planned or any(not resources_match(pi_home / item['relative'], Path(backups[item['relative']])) for item in planned):
+            fail("resources changed during preflight; nothing removed")
 
     manifest = dict(old_manifest or {})
     hashes = dict(manifest.get("legacy_hashes", {}))
@@ -230,7 +308,7 @@ def migrate_and_run(args: argparse.Namespace, old_manifest: dict | None,
     try:
         for item in planned:
             relative = item["relative"]
-            path = pi_home / relative
+            path = checked_path(pi_home, pi_home / relative, allow_leaf_link=True)
             print(f"REMOVE {path}")
             removed.append(relative)
             if path.is_dir() and not path.is_symlink():
@@ -243,7 +321,7 @@ def migrate_and_run(args: argparse.Namespace, old_manifest: dict | None,
     except BaseException:
         # Keep the recovery manifest if rollback itself fails or a new file conflicts.
         for relative in removed:
-            target = pi_home / relative
+            target = checked_path(pi_home, pi_home / relative, allow_leaf_link=True)
             if target.exists() or target.is_symlink():
                 fail(f"rollback conflict: {target}; recovery manifest retained at {manifest_path}")
             copy_resource(Path(backups[relative]), target)
@@ -281,6 +359,7 @@ def settings_contains_source(pi_home: Path, source: str) -> bool:
     return False
 
 
+@locked_operation
 def install(args: argparse.Namespace) -> None:
     repo_root = Path(args.repo_root).resolve()
     pi_home = Path(args.pi_home).expanduser().resolve()
@@ -292,6 +371,7 @@ def install(args: argparse.Namespace) -> None:
                     lambda: run_pi(args.pi_bin, ["install", source], args.dry_run, pi_home))
 
 
+@locked_operation
 def update(args: argparse.Namespace) -> None:
     repo_root = Path(args.repo_root).resolve()
     pi_home = Path(args.pi_home).expanduser().resolve()
@@ -307,6 +387,31 @@ def update(args: argparse.Namespace) -> None:
         except subprocess.CalledProcessError:
             run_pi(args.pi_bin, ["install", source], args.dry_run, pi_home)
     migrate_and_run(args, manifest, planned, command)
+
+
+def doctor_commands(repo_root: Path, full: bool = False) -> list[list[str]]:
+    """Build a fast runtime smoke check, with the developer suite opt-in."""
+    runtime_paths = sorted((repo_root / "pi/extensions").glob("*.ts"))
+    runtime_paths.extend(sorted((repo_root / "pi/lib").glob("**/*.ts")))
+    modules = json.dumps([path.resolve().as_uri() for path in runtime_paths])
+    smoke = (
+        f"const modules = {modules}; "
+        "for (const module of modules) await import(module);"
+    )
+    commands = [[
+        "node", "--experimental-strip-types", "--input-type=module", "-e", smoke,
+    ]]
+    if not full:
+        return commands
+
+    tests = sorted(str(path) for path in (repo_root / "pi/test").glob("*.test.ts"))
+    if tests:
+        commands.append(["node", "--experimental-strip-types", "--test", *tests])
+    commands.extend(
+        [sys.executable, str(path)]
+        for path in sorted((repo_root / "pi/test").glob("*.test.py"))
+    )
+    return commands
 
 
 def doctor(args: argparse.Namespace) -> int:
@@ -332,17 +437,14 @@ def doctor(args: argparse.Namespace) -> int:
                 print(f"OVERRIDE {path}")
             else:
                 issues.append(f"legacy resource still present: {path}")
-    for variable in ("AIHUBMIX_API_KEY", "DEEPSEEK_API_KEY"):
+    for status, provider, variable in (
+        ("DISABLED", "aihubmix", "AIHUBMIX_API_KEY"),
+        ("UNAVAILABLE", "deepseek-full", "DEEPSEEK_API_KEY"),
+        ("DISABLED", "cuhksz", "CUHKSZ_API_KEY"),
+    ):
         if not os.environ.get(variable):
-            issues.append(f"environment variable is not set: {variable}")
-    tests = sorted(str(path) for path in (repo_root / "pi/test").glob("*.test.ts"))
-    commands = [["node", "--test", *tests]] if tests else []
-    commands.extend([sys.executable, str(path)] for path in sorted((repo_root / "pi/test").glob("*.test.py")))
-    for path in sorted((repo_root / "pi").glob("extensions/*.ts")):
-        commands.append(["node", "--input-type=module", "-e", f"import '{path.resolve()}'"])
-    for path in sorted((repo_root / "pi").glob("lib/**/*.ts")):
-        commands.append(["node", "--input-type=module", "-e", f"import '{path.resolve()}'"])
-    for command in commands:
+            print(f"{status} {provider}: environment variable is not set: {variable}")
+    for command in doctor_commands(repo_root, getattr(args, "full", False)):
         result = subprocess.run(command, env={**os.environ, "PI_CODING_AGENT_DIR": str(pi_home)})
         if result.returncode != 0:
             issues.append("verification failed: " + " ".join(command))
@@ -379,18 +481,21 @@ def restore_resource(source: Path, target: Path) -> None:
         staged.rename(target)
 
 
+@locked_operation
 def uninstall(args: argparse.Namespace) -> None:
     repo_root = Path(args.repo_root).resolve()
     pi_home = Path(args.pi_home).expanduser().resolve()
     source = package_source(repo_root)
     manifest_path = pi_home / ".cyberbrain-pi.manifest.json"
     manifest = load_manifest(manifest_path)
+    if manifest and manifest.get('source') != source:
+        fail("installer manifest source does not match this Cyberbrain clone")
     backups = legacy_backups(manifest) if args.restore_legacy else {}
     resuming = bool(backups and (manifest or {}).get("restoration_pending"))
     # Preflight the entire restoration before removing the registered package.
     for relative, backup in backups.items():
         source_path = Path(backup)
-        target_path = pi_home / relative
+        target_path = checked_path(pi_home, pi_home / relative, allow_leaf_link=True)
         if not source_path.exists() and not source_path.is_symlink():
             fail(f"backup missing: {source_path}; manifest retained")
         if target_path.exists() or target_path.is_symlink():
@@ -405,7 +510,7 @@ def uninstall(args: argparse.Namespace) -> None:
         run_pi(args.pi_bin, ["remove", source], args.dry_run, pi_home)
     for relative, backup in backups.items():
         source_path = Path(backup)
-        target_path = pi_home / relative
+        target_path = checked_path(pi_home, pi_home / relative, allow_leaf_link=True)
         if target_path.exists() or target_path.is_symlink():
             if resuming and resources_match(source_path, target_path):
                 continue
@@ -422,6 +527,11 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("command", choices=("install", "update", "doctor", "uninstall"))
     result.add_argument("--dry-run", action="store_true")
     result.add_argument("--restore-legacy", action="store_true")
+    result.add_argument(
+        "--full",
+        action="store_true",
+        help="doctor only: also run the complete TypeScript and Python test suites",
+    )
     result.add_argument("--pi-home", default=os.environ.get("PI_CODING_AGENT_DIR") or str(Path.home() / ".pi/agent"))
     result.add_argument("--pi-bin", default="pi")
     result.add_argument("--repo-root", default=str(Path(__file__).resolve().parents[1]))

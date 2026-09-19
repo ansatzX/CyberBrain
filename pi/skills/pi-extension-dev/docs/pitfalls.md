@@ -1,7 +1,7 @@
 # Pi Extension Pitfalls
 
 1. JavaScript forbids unparenthesized mixing of `??` with `||` or `&&`: use `(a ?? b) || c`. Pi supports `??` and `?.`.
-2. Every `.ts`/`.js` under an extension discovery directory is treated as an extension entry. Keep helper modules/tests elsewhere (for example `~/.pi/agent/lib/`).
+2. Every `.ts`/`.js` under an extension discovery directory is treated as an extension entry. Keep helpers/tests elsewhere: CyberBrain uses `pi/lib/` and `pi/test/`. For a standalone global extension, use the selected agent home, not a hardcoded `~/.pi/agent` path.
 3. Do not load the same extension via automatic discovery and `-e`; duplicate commands become `name:1`, `name:2`.
 4. Empty object tool schemas must still declare `{ type: "object", properties: {} }`.
 5. `ctx.ui` dialogs require `ctx.hasUI`; print mode notifications may be invisible.

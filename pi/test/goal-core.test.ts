@@ -1,4 +1,5 @@
 import { test } from "node:test";
+const tick = () => new Promise(resolve => setTimeout(resolve, 10));
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
@@ -196,14 +197,16 @@ test("agent_settled 为 active goal 排入一次后续工作并在下一 run 后
 	} as any);
 
 	const sessionFile = "/tmp/goal-extension-cycle.jsonl";
-	const ctx = { sessionManager: { getSessionFile: () => sessionFile }, ui: { notify() {} } };
+	const ctx = { sessionManager: { getSessionFile: () => sessionFile }, ui: { notify() {} }, isIdle: () => true, hasPendingMessages: () => false, abort() {} };
 	createGoal(getSessionThreadId(sessionFile), "循环目标");
 	await handlers.get("agent_settled")?.({}, ctx);
 	await handlers.get("agent_settled")?.({}, ctx);
+	await tick();
 	assert.equal(sent.length, 1);
-	assert.deepEqual(sent[0].options, { deliverAs: "followUp" });
+	assert.equal(sent[0].options, undefined);
 	await handlers.get("agent_start")?.({}, ctx);
 	await handlers.get("agent_settled")?.({}, ctx);
+	await tick();
 	assert.equal(sent.length, 2);
 	updateGoalStatus(getSessionThreadId(sessionFile), "complete", "完成", "turn-1");
 	await handlers.get("agent_start")?.({}, ctx);
@@ -400,7 +403,7 @@ function budgetHarness(sessionFile: string) {
 			sent += 1;
 		},
 	} as never);
-	const ctx = { sessionManager: { getSessionFile: () => sessionFile }, ui: { notify() {} } };
+	const ctx = { sessionManager: { getSessionFile: () => sessionFile }, ui: { notify() {} }, isIdle: () => true, hasPendingMessages: () => false, abort() {} };
 	return {
 		get sent() {
 			return sent;
@@ -425,6 +428,7 @@ function budgetHarness(sessionFile: string) {
 				ctx,
 			);
 			await handlers.get("agent_settled")?.({}, ctx);
+			await tick();
 		},
 	};
 }
@@ -571,7 +575,8 @@ test("aborted 是用户中断，不计作错误", async () => {
 
 		const goal = loadGoal(thread);
 		assert.equal(goal?.error_streak, 0, "Esc 中断不是坏状态，不得触发错误刹车");
-		assert.equal(goal?.status, "active");
+		assert.equal(goal?.status, "paused");
+		assert.equal(harness.sent, 0, "Esc must not schedule another run");
 	} finally {
 		if (previous === undefined) delete process.env.CYBERBRAIN_GOAL_TURN_BUDGET;
 		else process.env.CYBERBRAIN_GOAL_TURN_BUDGET = previous;
@@ -626,7 +631,7 @@ rmSync(process.env.PI_GOAL_TEST_DIR as string, { recursive: true, force: true })
 const goalCoreUrl = new URL("../lib/goal-core.ts", import.meta.url).href;
 
 function runNode(source: string, directory: string): string {
-	return execFileSync(process.execPath, ["--input-type=module", "-e", source], {
+	return execFileSync(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", source], {
 		env: { ...process.env, PI_GOAL_TEST_DIR: directory },
 		encoding: "utf8",
 	}).trim();
@@ -644,7 +649,7 @@ test("并发进程下 blocked 计数不丢更新", async () => {
 			Array.from({ length: writerCount }, (_unused, index) => {
 				const source = `import(${JSON.stringify(goalCoreUrl)}).then((m) => m.registerBlockedOccurrence("shared", "turn-${index}", "同一原因"));`;
 				return new Promise<void>((resolve, reject) => {
-					const child = spawn(process.execPath, ["--input-type=module", "-e", source], {
+					const child = spawn(process.execPath, ["--experimental-strip-types", "--input-type=module", "-e", source], {
 						env: { ...process.env, PI_GOAL_TEST_DIR: directory },
 						stdio: "ignore",
 					});
@@ -704,58 +709,97 @@ test("archiveGoal 仍可清理未完成的 goal", () => {
 // 锁的等待必须是真睡眠而非忙等。忙等版本在等锁期间会满占一核（实测
 // user ≈ wall），Atomics.wait 则把线程挂起在内核（实测 user 远小于 wall）。
 // 断言 CPU 时间而非实现细节，因为前者才是真正要保障的性质。
-test("等锁期间不得忙等烧 CPU", () => {
-	const directory = mkdtempSync(join(tmpdir(), "goal-cpu-"));
+test("locked writes fail closed without burning CPU or stealing old locks", () => {
+	const directory = mkdtempSync(join(tmpdir(), "goal-lock-timeout-"));
 	try {
 		runNode(`const m = await import(${JSON.stringify(goalCoreUrl)}); m.createGoal("t", "目标");`, directory);
-		const lockPath = `${runNode(
-			`const m = await import(${JSON.stringify(goalCoreUrl)}); process.stdout.write(m.goalFilePath("t"));`,
-			directory,
-		)}.lock`;
+		const path = runNode(`const m = await import(${JSON.stringify(goalCoreUrl)}); process.stdout.write(m.goalFilePath("t"));`, directory);
+		const before = readFileSync(path, "utf8");
+		mkdirSync(path + ".lock");
+		const oldTime = new Date(Date.now() - 60000);
+		utimesSync(path + ".lock", oldTime, oldTime);
+		const result = JSON.parse(runNode(`const m = await import(${JSON.stringify(goalCoreUrl)});
+			const start = Date.now(), cpuStart = process.cpuUsage(); let error = "";
+			try { m.pauseGoal("t"); } catch(e) { error = e.message; }
+			const cpu = process.cpuUsage(cpuStart);
+			process.stdout.write(JSON.stringify({error, wall: Date.now()-start, cpu: (cpu.user+cpu.system)/1000}));`, directory));
+		assert.match(result.error, /Goal lock timed out/);
+		assert.ok(result.wall >= 2500);
+		assert.ok(result.cpu < result.wall * 0.6);
+		assert.equal(readFileSync(path, "utf8"), before);
+		assert.equal(existsSync(path + ".lock"), true);
+		// Once the owner releases the lock, writes work again.
+		rmSync(path + ".lock", {recursive:true});
+		runNode(`const m = await import(${JSON.stringify(goalCoreUrl)}); m.pauseGoal("t");`, directory);
+		assert.equal(JSON.parse(readFileSync(path,"utf8")).status,"paused");
+	} finally { rmSync(directory, {recursive:true,force:true}); }
+});
 
-		// 占住一把“新鲜”锁（未达到 10s 废锁阈值），逼迫写入者真正等待。
-		mkdirSync(lockPath, { recursive: true });
-		const holdMs = 1_000;
-		const release = setTimeout(() => rmSync(lockPath, { recursive: true, force: true }), holdMs);
+function lifecycleHarness(name: string) {
+	const file = "/tmp/goal-lifecycle-" + name + ".jsonl";
+	const thread = getSessionThreadId(file);
+	const handlers = new Map<string, any>();
+	const commands = new Map<string, any>();
+	let sent = 0, aborted = 0;
+	const ctx = {
+		sessionManager: {getSessionFile: () => file}, ui: {notify() {}},
+		isIdle: () => true, hasPendingMessages: () => false,
+		abort: () => { aborted++; },
+	};
+	goalExtension({on: (e: string,h: any) => handlers.set(e,h),
+		registerCommand: (name: string, command: any) => commands.set(name,command),
+		registerTool() {}, sendUserMessage: () => {sent++;},
+	} as any);
+	return {thread, ctx, get sent(){return sent;}, get aborted(){return aborted;},
+		fire: (event: string, payload: any = {}) => handlers.get(event)?.(payload,ctx),
+		command: (text: string) => commands.get("ansatz:goal").handler(text,ctx),
+	};
+}
 
-		const started = process.hrtime.bigint();
-		const cpu = runNode(
-			`const m = await import(${JSON.stringify(goalCoreUrl)});
-			m.registerBlockedOccurrence("t", "turn-1", "原因");
-			const u = process.cpuUsage();
-			process.stdout.write(String(u.user + u.system));`,
-			directory,
-		);
-		clearTimeout(release);
-		const wallMs = Number(process.hrtime.bigint() - started) / 1e6;
-		const cpuMs = Number(cpu) / 1000;
+test("restart pauses active goal and resume preserves identity", async () => {
+	const h=lifecycleHarness("restart");const goal=createGoal(h.thread,"recover me");
+	await h.fire("session_start",{reason:"startup"});
+	assert.equal(loadGoal(h.thread)?.status,"paused");assert.equal(h.sent,0);
+	await h.command("resume");
+	assert.equal(loadGoal(h.thread)?.goal_id,goal.goal_id);
+	assert.equal(loadGoal(h.thread)?.status,"active");assert.equal(h.sent,1);
+	await h.fire("session_shutdown");
+});
 
-		assert.ok(wallMs >= holdMs * 0.8, `写入者应确实等过锁（wall=${wallMs.toFixed(0)}ms）`);
-		// 忙等会使 cpu 逼近 wall；留出 Node 启动开销的余量。
-		assert.ok(
-			cpuMs < wallMs * 0.6,
-			`等锁不得忙等：cpu=${cpuMs.toFixed(0)}ms wall=${wallMs.toFixed(0)}ms`,
-		);
-	} finally {
-		rmSync(directory, { recursive: true, force: true });
+test("pause and shutdown cancel pending continuation before dispatch", async () => {
+	for(const operation of ["pause","clear","shutdown"]) {
+		const h=lifecycleHarness("cancel-"+operation);createGoal(h.thread,"do work");
+		const pending=h.fire("agent_settled");
+		if(operation==="shutdown") await h.fire("session_shutdown"); else await h.command(operation);
+		await pending;await tick();assert.equal(h.sent,0);
 	}
 });
 
-test("陈旧锁不会永久阻塞后续写入", () => {
-	const directory = mkdtempSync(join(tmpdir(), "goal-stale-"));
+test("model-turn budget stops a tool loop before agent_settled", async () => {
+	const previous=process.env.CYBERBRAIN_GOAL_MODEL_TURN_BUDGET;
+	process.env.CYBERBRAIN_GOAL_MODEL_TURN_BUDGET="2";
+	const h=lifecycleHarness("model-turns");
 	try {
-		process.env.PI_GOAL_TEST_DIR = directory;
-		createGoal("t", "目标");
-		// 模拟崩溃进程遗留的锁：无人能释放它，超时后必须被当作废锁回收。
-		const lockPath = `${goalFilePath("t")}.lock`;
-		mkdirSync(lockPath, { recursive: true });
-		const longAgo = new Date(Date.now() - 60_000);
-		utimesSync(lockPath, longAgo, longAgo);
-
-		registerBlockedOccurrence("t", "turn-1", "原因");
-		assert.equal(loadGoal("t")?.blocked_streak, 1, "陈旧锁必须被回收，写入不得被永久丢弃");
-		assert.equal(existsSync(lockPath), false, "正常退出后不得残留锁目录");
+		createGoal(h.thread,"bounded loop");await h.fire("agent_start");
+		for(let i=0;i<3;i++) await h.fire("turn_start",{timestamp:Date.now(),turnIndex:i});
+		assert.equal(loadGoal(h.thread)?.model_turn_count,2);
+		assert.equal(loadGoal(h.thread)?.turn_count,0);
+		assert.equal(loadGoal(h.thread)?.status,"paused");assert.equal(h.aborted,1);
+		await h.fire("agent_settled");assert.equal(h.sent,0);
+		await h.command("resume");assert.equal(loadGoal(h.thread)?.model_turn_count,0);
 	} finally {
-		rmSync(directory, { recursive: true, force: true });
+		if(previous===undefined) delete process.env.CYBERBRAIN_GOAL_MODEL_TURN_BUDGET;
+		else process.env.CYBERBRAIN_GOAL_MODEL_TURN_BUDGET=previous;
+		await h.fire("session_shutdown");
 	}
+});
+
+test("wall deadline aborts a run with no further model or tool events", async () => {
+	const h=lifecycleHarness("timeout");const goal=createGoal(h.thread,"hanging call");
+	saveGoal({...goal,deadline_at:Date.now()+40});
+	await h.fire("agent_start");await new Promise(resolve=>setTimeout(resolve,90));
+	assert.equal(loadGoal(h.thread)?.status,"paused");assert.equal(h.aborted,1);
+	assert.match(loadGoal(h.thread)?.status_reason??"",/wall-time/);
+	await h.fire("agent_settled");assert.equal(h.sent,0);
+	await h.fire("session_shutdown");
 });

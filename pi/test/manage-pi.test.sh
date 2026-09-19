@@ -8,6 +8,7 @@ PI_HOME="$TMP/home/.pi/agent"
 FAKE_LOG="$TMP/pi.log"
 mkdir -p "$PI_HOME/extensions" "$PI_HOME/lib" "$PI_HOME/slashes" "$PI_HOME/skills/pi-extension-dev" "$TMP/bin"
 cp "$REPO_ROOT/pi/extensions/goal.ts" "$PI_HOME/extensions/goal.ts"
+cp "$REPO_ROOT/pi/skills/pi-extension-dev/SKILL.md" "$PI_HOME/skills/pi-extension-dev/SKILL.md"
 cat > "$TMP/bin/pi" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail

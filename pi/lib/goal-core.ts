@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { agentDir } from "./agent-paths.ts";
 import { dirname, join } from "node:path";
 
@@ -20,6 +20,9 @@ export interface GoalState {
 	idle_streak: number;
 	/** Consecutive continuation turns that ended in a model/runtime error. */
 	error_streak: number;
+	/** Model turns and wall deadline since creation/resume; optional for old files. */
+	model_turn_count?: number;
+	deadline_at?: number | null;
 }
 
 export type GoalStatus = GoalState["status"];
@@ -52,6 +55,17 @@ export const DEFAULT_IDLE_BUDGET = 3;
  * retry, while a genuinely broken state repeats immediately.
  */
 export const DEFAULT_ERROR_BUDGET = 2;
+export const DEFAULT_MODEL_TURN_BUDGET = 100;
+export const DEFAULT_TIME_BUDGET_MS = 30 * 60 * 1000;
+
+export function modelTurnBudget(): number {
+	return positiveIntFromEnv("CYBERBRAIN_GOAL_MODEL_TURN_BUDGET", DEFAULT_MODEL_TURN_BUDGET);
+}
+
+function newDeadline(): number | null {
+	const ms = positiveIntFromEnv("CYBERBRAIN_GOAL_TIME_BUDGET_MS", DEFAULT_TIME_BUDGET_MS);
+	return Number.isFinite(ms) ? Date.now() + ms : null;
+}
 
 function positiveIntFromEnv(name: string, fallback: number): number {
 	const raw = process.env[name]?.trim();
@@ -188,13 +202,10 @@ export function saveGoal(goal: GoalState): void {
  * terminal state on an exact count of three, a lost update silently moves the
  * threshold.
  *
- * `mkdir` is atomic on POSIX and Windows, so it serves as the mutex. A lock
- * older than LOCK_STALE_MS is treated as abandoned (a crashed process cannot
- * release its own lock); acquisition otherwise spins briefly and then proceeds
- * unlocked rather than failing, since losing an increment is strictly better
- * than dropping the caller's state transition.
+ * `mkdir` is atomic and serves as the mutex. Timeout fails without mutation.
+ * Age alone cannot prove the owner is dead (suspend, slow I/O, another host).
+ * Orphan locks require stopping all writers before explicit removal.
  */
-const LOCK_STALE_MS = 10_000;
 const LOCK_RETRY_MS = 15;
 const LOCK_MAX_ATTEMPTS = 200;
 
@@ -208,19 +219,13 @@ function withGoalLock<T>(threadId: string, mutate: () => T): T {
 			mkdirSync(lockPath);
 			held = true;
 			break;
-		} catch {
-			try {
-				if (Date.now() - statSync(lockPath).mtimeMs > LOCK_STALE_MS) {
-					rmSync(lockPath, { recursive: true, force: true });
-					continue;
-				}
-			} catch {
-				continue; // lock vanished between mkdir and stat; retry immediately
-			}
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
 			sleepSync(LOCK_RETRY_MS);
 		}
 	}
 
+	if (!held) throw new Error(`Goal lock timed out: ${lockPath}. State unchanged. Stop all writers before removing an orphaned lock and retrying.`);
 	try {
 		return mutate();
 	} finally {
@@ -262,6 +267,8 @@ export function createGoal(threadId: string, objective: string): GoalState {
 			turn_count: 0,
 			idle_streak: 0,
 			error_streak: 0,
+			model_turn_count: 0,
+			deadline_at: newDeadline(),
 		};
 		saveGoal(goal);
 		return goal;
@@ -464,6 +471,9 @@ export function toolGetGoal(threadId: string): string {
 		`blocked_streak: ${goal.blocked_streak}`,
 		`blocked_condition: ${goal.blocked_condition || "none"}`,
 		`status_reason: ${goal.status_reason || "none"}`,
+		`continuation_turns: ${goal.turn_count}`,
+		`model_turns: ${goal.model_turn_count ?? 0}`,
+		`deadline: ${goal.deadline_at == null ? "none" : new Date(goal.deadline_at).toISOString()}`,
 	].join("\n");
 }
 
@@ -627,12 +637,13 @@ export function recordContinuationTurn(threadId: string, progress: TurnProgress)
 	});
 }
 
-export function pauseGoal(threadId: string): PauseGoalOutcome {
+export function pauseGoal(threadId: string, reason = "Paused by user."): PauseGoalOutcome {
 	return withGoalLock(threadId, (): PauseGoalOutcome => {
 		const goal = loadGoal(threadId);
 		if (!goal) return { ok: false, error: "No goal exists for this session." };
 		if (goal.status !== "active") return { ok: false, error: `Only active goals can be paused (current: ${goal.status}).` };
 		goal.status = "paused";
+		goal.status_reason = reason;
 		goal.updated_at = new Date().toISOString();
 		saveGoal(goal);
 		return { ok: true, goal };
@@ -669,8 +680,30 @@ export function resumeGoal(threadId: string): PauseGoalOutcome {
 		goal.turn_count = 0;
 		goal.idle_streak = 0;
 		goal.error_streak = 0;
+		goal.model_turn_count = 0;
+		goal.deadline_at = newDeadline();
 		goal.updated_at = new Date().toISOString();
 		saveGoal(goal);
 		return { ok: true, goal };
+	});
+}
+
+/** Count each model turn before it starts; never depend on agent_settled. */
+export function checkExecutionBudget(threadId: string, countTurn = false): GoalState | null {
+	return withGoalLock(threadId, () => {
+		const goal = loadGoal(threadId);
+		if (!goal || goal.status !== "active") return goal;
+		if (goal.deadline_at === undefined) goal.deadline_at = newDeadline();
+		let reason: string | null = null;
+		if (goal.deadline_at !== null && Date.now() >= goal.deadline_at) {
+			reason = "Auto-paused: wall-time budget exhausted. Use /ansatz:goal resume to continue.";
+		} else if (countTurn && (goal.model_turn_count ?? 0) >= modelTurnBudget()) {
+			reason = "Auto-paused: model-turn budget exhausted. Use /ansatz:goal resume to continue.";
+		}
+		if (reason) { goal.status = "paused"; goal.status_reason = reason; }
+		else if (countTurn) goal.model_turn_count = (goal.model_turn_count ?? 0) + 1;
+		goal.updated_at = new Date().toISOString();
+		saveGoal(goal);
+		return goal;
 	});
 }

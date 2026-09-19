@@ -32,6 +32,18 @@ restored exactly, avoids removing an already-unregistered package again, and kee
 rejecting user-edited targets. Whole resources are staged before being moved into
 place; recovery records remain until restoration finishes.
 
+## DeepSeek Full provider
+
+The custom provider is `deepseek-full`, distinct from built-in `deepseek`. Its
+entrypoint is [extensions/deepseek-full.ts](extensions/deepseek-full.ts), with
+models `deepseek-flash` and `deepseek-v4-pro`. Anthropic is the default protocol;
+`CYBERBRAIN_DEEPSEEK_PROTOCOL=responses` selects the alternative on next startup.
+Search availability depends on the protocol, not just the model name. See the
+[installation guide](../INSTALL.md) for switches and complete package updates, and
+[provider capabilities](skills/pick-model/references/provider-capabilities.md)
+when selecting a search-capable launch. Do not duplicate package extensions in
+the user home or rewrite historical sessions during package updates.
+
 ## Skills and roles
 
 - `agent-cluster` covers ownership, launch, supervision and acceptance. Its

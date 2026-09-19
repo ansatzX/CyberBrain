@@ -111,6 +111,8 @@ export type RefreshOptions = {
 	path: string;
 	providerId: string;
 	config: ProviderConfig;
+	/** Explicit owned legacy IDs to migrate in the same locked transaction. */
+	replaceProviderIds?: string[];
 };
 
 export async function refreshModelsJsonProvider(
@@ -176,12 +178,16 @@ async function refreshLocked(
 
 	if (
 		providerId in providers &&
+		!(options.replaceProviderIds ?? []).some(id => id !== providerId && id in providers) &&
 		stableStringify(providers[providerId]) === stableStringify(config)
 	) {
 		return { status: "unchanged", path };
 	}
 
 	providers[providerId] = config;
+	for (const id of options.replaceProviderIds ?? []) {
+		if (id !== providerId) delete providers[id];
+	}
 	const serialized = `${JSON.stringify(document, null, 2)}\n`;
 
 	// 写入前往返校验：确保序列化结果仍然是合法 JSON 且目标 section 完整。

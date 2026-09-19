@@ -23,8 +23,10 @@ import {
 	type ProviderModel,
 } from "../lib/third-party/aihubmix.ts";
 import { availableModel, detailedModel } from "./fixtures.ts";
-import { installDeepSeekWebSearch, refreshDeepSeekResponsesModelsJson, registerDeepSeekResponses } from "../lib/third-party/deepseek-responses.ts";
-import deepSeekResponsesExtension from "../extensions/deepseek-responses.ts";
+import { deepSeekProtocol, deepSeekProviderConfig, installDeepSeekWebSearch, refreshDeepSeekModelsJson, registerDeepSeek } from "../lib/third-party/deepseek-full.ts";
+import deepSeekExtension from "../extensions/deepseek-full.ts";
+import aihubmixExtension from "../extensions/aihubmix.ts";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const normalizeOptions = {
 	priceMultiplier: 1,
@@ -752,64 +754,64 @@ test("registerAIHubMix normalizes invalid environment options", async () => {
 });
 
 
-test("registerDeepSeekResponses registers the Responses provider", () => {
+test("registerDeepSeek registers exactly Flash and Pro", () => {
 	const registrations: Array<{ name: string; config: Record<string, unknown> }> = [];
-	registerDeepSeekResponses({ registerProvider: (name: string, config: Record<string, unknown>) => registrations.push({ name, config }) }, {});
-	assert.equal(registrations[0].name, "deepseek-responses");
-	assert.equal(registrations[0].config.api, "openai-responses");
+	registerDeepSeek({ registerProvider: (name, config) => registrations.push({ name, config }) }, {});
+	assert.equal(registrations[0].name, "deepseek-full");
+	assert.equal(registrations[0].config.name, "DeepSeek Full · 全功能");
+	assert.equal(registrations[0].config.api, "anthropic-messages");
 	assert.equal(registrations[0].config.apiKey, "$DEEPSEEK_API_KEY");
-	const models = registrations[0].config.models as Array<{
-		id: string;
-		contextWindow: number;
-		maxTokens: number;
-		cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
-		thinkingLevelMap: Record<string, string | null>;
-	}>;
-	// 对齐 pi-mono 官方 deepseek 目录（generate-models.ts deepseekV4Models）
-	assert.equal(models[0].id, "deepseek-v4-flash");
-	assert.equal(models[0].contextWindow, 1_000_000);
-	assert.equal(models[0].maxTokens, 384_000);
-	assert.deepEqual(models[0].cost, { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0 });
-	// DeepSeek 思考档位映射：官方有效档位仅 none/low/high/max。
-	// max 必须显式存在，否则 Pi 会把 max 压回 high；
-	// minimal/medium 置 null 禁用（API 对未知档位静默容忍但并非真实档位）；
-	// xhigh 对 flash 无意义（坍缩为 high），刻意不提供。
-	assert.deepEqual(models[0].thinkingLevelMap, {
-		minimal: null,
-		low: "low",
-		medium: null,
-		high: "high",
-		max: "max",
-	});
-	// deepseek-v4-flash-vision-exp：在 flash 基础上加图像输入，定价与 flash 一致。
-	assert.equal(models[1].id, "deepseek-v4-flash-vision-exp");
-	assert.deepEqual(models[1].input, ["text", "image"]);
-	assert.equal(models[1].contextWindow, 1_000_000);
-	assert.equal(models[1].maxTokens, 384_000);
-	assert.deepEqual(models[1].cost, { input: 0.14, output: 0.28, cacheRead: 0.0028, cacheWrite: 0 });
-	assert.deepEqual(models[1].thinkingLevelMap, {
-		minimal: null,
-		low: "low",
-		medium: null,
-		high: "high",
-		max: "max",
-	});
-	// deepseek-v4-pro：官方有效档位仅 none/low/high/max；low 请求服务端映射为 high（非真实独立档位）故置 null；
-	// xhigh 服务端映射为 max，max 已直接暴露，刻意不提供。
-	assert.equal(models[2].id, "deepseek-v4-pro");
-	assert.equal(models[2].contextWindow, 1_000_000);
-	assert.equal(models[2].maxTokens, 384_000);
-	assert.deepEqual(models[2].cost, { input: 0.435, output: 0.87, cacheRead: 0.003625, cacheWrite: 0 });
-	assert.deepEqual(models[2].thinkingLevelMap, {
-		minimal: null,
-		low: null,
-		medium: null,
-		high: "high",
-		max: "max",
+	const models = registrations[0].config.models as ProviderModel[];
+	assert.deepEqual(models.map(model => model.id), [
+		"deepseek-flash", "deepseek-v4-pro",
+	]);
+	for (const model of models) {
+		assert.equal(model.name, model.id);
+		assert.equal(model.contextWindow, 1_000_000);
+		assert.equal(model.maxTokens, 384_000);
+		assert.equal(model.reasoning, true);
+	}
+	for (const flash of models.slice(0, 1)) {
+		assert.deepEqual(flash.input, ["text", "image"]);
+		assert.deepEqual(flash.cost, { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 });
+		assert.deepEqual((flash as any).thinkingLevelMap, {
+			minimal: null, low: "low", medium: null, high: "high", max: "max",
+		});
+	}
+	assert.deepEqual(models[1].input, ["text"]);
+	assert.deepEqual(models[1].cost, { input: 1.32, output: 3.96, cacheRead: 0.044, cacheWrite: 0 });
+	assert.deepEqual((models[1] as any).thinkingLevelMap, {
+		minimal: null, low: null, medium: null, high: "high", max: "max",
 	});
 });
 
-test("deepseek-responses extension registers without any environment keys", async () => {
+test("aihubmix extension skips startup without a nonempty key", async () => {
+	const warnings: string[] = [];
+	const originalWarn = console.warn;
+	const originalKey = process.env.AIHUBMIX_API_KEY;
+	console.warn = ((message: unknown) => {
+		warnings.push(String(message));
+	}) as typeof console.warn;
+	delete process.env.AIHUBMIX_API_KEY;
+	try {
+		await aihubmixExtension({
+			registerProvider: () => assert.fail("must not register"),
+		} as unknown as ExtensionAPI);
+		process.env.AIHUBMIX_API_KEY = "   ";
+		await aihubmixExtension({
+			registerProvider: () => assert.fail("must not register"),
+		} as unknown as ExtensionAPI);
+	} finally {
+		console.warn = originalWarn;
+		if (originalKey === undefined) delete process.env.AIHUBMIX_API_KEY;
+		else process.env.AIHUBMIX_API_KEY = originalKey;
+	}
+
+	// 缺 key 只降级为「provider 不可用」：不抛错（pi 不再报 Failed to load extension）
+	assert.deepEqual(warnings, []);
+});
+
+test("deepseek extension registers without any environment keys", async () => {
 	const providers: string[] = [];
 	const events: string[] = [];
 	const pi = {
@@ -821,14 +823,14 @@ test("deepseek-responses extension registers without any environment keys", asyn
 	const previous = process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH;
 	process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH = "off";
 	try {
-		// 隔离性回归：aihubmix 因缺 AIHUBMIX_API_KEY 加载失败时，
-		// deepseek-responses 扩展必须照常注册（pi 按扩展文件隔离错误）。
-		await deepSeekResponsesExtension(pi as never);
+		// 隔离性回归：aihubmix 因缺 AIHUBMIX_API_KEY 直接失效时，
+		// deepseek 扩展必须照常注册（pi 按扩展文件隔离）。
+		await deepSeekExtension(pi as never);
 	} finally {
 		if (previous === undefined) delete process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH;
 		else process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH = previous;
 	}
-	assert.deepEqual(providers, ["deepseek-responses"]);
+	assert.deepEqual(providers, ["deepseek-full"]);
 	assert.ok(events.includes("before_provider_request"), "web search hook must be installed");
 });
 
@@ -836,15 +838,15 @@ test("deepseek models.json refresh mirrors the registered provider", async () =>
 	const dir = await mkdtemp(join(tmpdir(), "deepseek-models-json-"));
 	try {
 		const path = join(dir, "models.json");
-		await refreshDeepSeekResponsesModelsJson({
+		await refreshDeepSeekModelsJson({
 			CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: path,
 		});
 
 		const written = JSON.parse(await readFile(path, "utf8"));
-		const mirrored = written.providers["deepseek-responses"];
+		const mirrored = written.providers["deepseek-full"];
 		// models.json 必须与进程内注册的配置逐字一致，否则两条路径会漂移。
 		const registrations: Array<{ name: string; config: Record<string, unknown> }> = [];
-		registerDeepSeekResponses({
+		registerDeepSeek({
 			registerProvider: (name: string, config: Record<string, unknown>) =>
 				registrations.push({ name, config }),
 		}, {});
@@ -858,7 +860,7 @@ test("deepseek models.json refresh honors its kill switch", async () => {
 	const dir = await mkdtemp(join(tmpdir(), "deepseek-models-json-off-"));
 	try {
 		const path = join(dir, "models.json");
-		await refreshDeepSeekResponsesModelsJson({
+		await refreshDeepSeekModelsJson({
 			CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: path,
 			CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH: "off",
 		});
@@ -871,7 +873,7 @@ test("deepseek models.json refresh honors its kill switch", async () => {
 test("deepseek models.json refresh failure never blocks registration", async () => {
 	const warnings: string[] = [];
 	// 指向一个不可写的路径：刷新失败只能告警，不得抛出。
-	await refreshDeepSeekResponsesModelsJson(
+	await refreshDeepSeekModelsJson(
 		{ CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: "/proc/nonexistent/models.json" },
 		{ warn: (message: string) => warnings.push(message) },
 	);
@@ -879,11 +881,54 @@ test("deepseek models.json refresh failure never blocks registration", async () 
 	assert.match(warnings[0], /still registered in-process/);
 });
 
-test("DeepSeek web search is default-on and can be disabled", () => {
-	const handlers: Array<(event: any, ctx: any) => unknown> = [];
+test("DeepSeek protocol defaults to Anthropic and supports explicit Responses", () => {
+	assert.equal(deepSeekProtocol({}), "anthropic");
+	assert.equal(deepSeekProviderConfig({}).baseUrl, "https://api.deepseek.com/anthropic");
+	const responses = deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: " responses " });
+	assert.equal(responses.api, "openai-responses");
+	assert.equal(responses.baseUrl, "https://api.deepseek.com");
+	assert.ok(responses.models.every(model => !("compat" in model)));
+	assert.throws(() => deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: "invalid" }), /anthropic or responses/);
+});
+
+test("DeepSeek Anthropic search supports both models without mutation or duplicate tools", () => {
+	const handlers: Array<(event: any, ctx: any) => any> = [];
 	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, {});
-	const payload = { model: "deepseek-v4-flash", input: [], tools: [] };
-	const enabled = handlers[0]({ payload }, { model: { provider: "deepseek-responses" } }) as { tools: unknown[] };
+	for (const model of ["deepseek-flash", "deepseek-v4-pro"]) {
+		const ctx = { model: { provider: "deepseek-full" } };
+		const payload = { model, messages: [], tools: [{ name: "read", input_schema: { type: "object" } }] };
+		const next = handlers[0]({ payload }, ctx);
+		assert.deepEqual(next.tools, [...payload.tools, { type: "web_search_20250305", name: "web_search", max_uses: 3 }]);
+		assert.equal(payload.tools.length, 1);
+		assert.equal(handlers[0]({ payload: next }, ctx), undefined);
+		assert.equal(handlers[0]({ payload: { ...payload, tools: [{ name: "web_search", input_schema: {} }] } }, ctx), undefined);
+		assert.equal(handlers[0]({ payload }, { model: { provider: "deepseek" } }), undefined);
+		assert.equal(handlers[0]({ payload: { model, input: [] } }, ctx), undefined);
+	}
+});
+
+test("DeepSeek catalog migrates the legacy provider while preserving built-in DeepSeek", async () => {
+	const dir = await mkdtemp(join(tmpdir(), "deepseek-migration-"));
+	try {
+		const path = join(dir, "models.json");
+		const original = { providers: { deepseek: { custom: true }, "deepseek-responses": { old: true } }, extra: 42 };
+		await writeFile(path, JSON.stringify(original));
+		for (const protocol of ["anthropic", "responses"]) {
+			await refreshDeepSeekModelsJson({ CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: path, CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol });
+			const actual = JSON.parse(await readFile(path, "utf8"));
+			assert.equal(actual.providers["deepseek-responses"], undefined);
+			assert.deepEqual(actual.providers.deepseek, original.providers.deepseek);
+			assert.equal(actual.extra, 42);
+			assert.deepEqual(actual.providers["deepseek-full"], deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol }));
+		}
+	} finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("DeepSeek Pro web search is default-on and can be disabled", () => {
+	const handlers: Array<(event: any, ctx: any) => unknown> = [];
+	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, { CYBERBRAIN_DEEPSEEK_PROTOCOL: "responses" });
+	const payload = { model: "deepseek-v4-pro", input: [], tools: [] };
+	const enabled = handlers[0]({ payload }, { model: { provider: "deepseek-full" } }) as { tools: unknown[] };
 	assert.deepEqual(enabled.tools, [{ type: "web_search" }]);
 
 	const disabled: unknown[] = [];
@@ -896,4 +941,14 @@ test("DeepSeek web search ignores every other provider", () => {
 	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, {});
 	const payload = { model: "gpt-5.6-sol", input: [], tools: [] };
 	assert.equal(handlers[0]({ payload }, { model: { provider: "aihubmix" } }), undefined);
+});
+
+test("DeepSeek Flash and its legacy aliases do not receive web search", () => {
+	const handlers: Array<(event: any, ctx: any) => unknown> = [];
+	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, {});
+	for (const model of ["deepseek-flash", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]) {
+		const payload = { model, input: [], tools: [{ type: "function", name: "read" }] };
+		assert.equal(handlers[0]({ payload }, { model: { provider: "deepseek-full" } }), undefined);
+		assert.deepEqual(payload.tools, [{ type: "function", name: "read" }]);
+	}
 });

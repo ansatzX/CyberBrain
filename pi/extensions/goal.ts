@@ -1,12 +1,13 @@
 // goal.ts — goal v2 扩展壳（命令层 + 工具层 + 事件层）
 // 架构：goal-core.ts 纯逻辑 + 本文件 pi API 挂接（对齐 codex ext/goal/）
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import {
 	loadGoal, createGoal, archiveGoal,
 	objectiveUpdatedPrompt, continuationPrompt,
 	toolGetGoal, toolCreateGoal, toolUpdateGoal, shouldContinue,
 	pauseGoal, resumeGoal, getSessionThreadId, recordContinuationTurn, toolCallMakesProgress, type GoalState,
+	checkExecutionBudget,
 } from "../lib/goal-core.ts";
 
 export function goalSetObjective(args: string): string | null {
@@ -24,6 +25,49 @@ export function shouldQueueGoalContinuation(goal: GoalState | null, alreadyQueue
 export default function goalExtension(pi: ExtensionAPI) {
 	const activeTurnIds = new Map<string, string>();
 	const queuedContinuations = new Set<string>();
+	const continuationTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	const continuationResolvers = new Map<string, () => void>();
+	const deadlineTimers = new Map<string, ReturnType<typeof setTimeout>>();
+	const cancelPending = (thread: string) => {
+		clearTimeout(continuationTimers.get(thread));
+		clearTimeout(deadlineTimers.get(thread));
+		continuationTimers.delete(thread);
+		continuationResolvers.get(thread)?.();
+		continuationResolvers.delete(thread);
+		deadlineTimers.delete(thread);
+		queuedContinuations.delete(thread);
+	};
+	const abortRun = (ctx: ExtensionContext) => {
+		// Do not await abort from an event handler: the run may await this handler.
+		void Promise.resolve(ctx.abort()).catch(error => ctx.ui.notify(String(error), "error"));
+	};
+	const enforceBudget = (ctx: ExtensionContext, countTurn = false) => {
+		const thread = threadIdFor(ctx);
+		try {
+			const goal = checkExecutionBudget(thread, countTurn);
+			if (!goal) return;
+			if (goal.status !== "active") {
+				cancelPending(thread);
+				if (goal.status_reason) ctx.ui.notify(goal.status_reason, "info");
+				abortRun(ctx);
+				return;
+			}
+			clearTimeout(deadlineTimers.get(thread));
+			if (goal.deadline_at != null) {
+				const timer = setTimeout(() => {
+					deadlineTimers.delete(thread);
+					const current = loadGoal(thread);
+					if (current?.goal_id === goal.goal_id && current.status === "active") enforceBudget(ctx);
+				}, Math.min(2_147_483_647, Math.max(1, goal.deadline_at - Date.now())));
+				timer.unref();
+				deadlineTimers.set(thread, timer);
+			}
+		} catch (error) {
+			cancelPending(thread);
+			ctx.ui.notify(`Goal budget check failed: ${String(error)}`, "error");
+			abortRun(ctx);
+		}
+	};
 	// Progress-making tool calls in the current agent run, per thread. A goal
 	// turn that only inspects state changed nothing observable — it restated its
 	// own status — and is what the idle budget is meant to catch.
@@ -39,6 +83,20 @@ export default function goalExtension(pi: ExtensionAPI) {
 
 	pi.on("turn_start", async (event, ctx) => {
 		activeTurnIds.set(threadIdFor(ctx), `${event.timestamp}:${event.turnIndex}`);
+		// Ignore unrelated work after a goal has stopped.
+		if (loadGoal(threadIdFor(ctx))?.status === "active") enforceBudget(ctx, true);
+	});
+
+	pi.on("session_start", async (_event, ctx) => {
+		const thread = threadIdFor(ctx);
+		cancelPending(thread);
+		if (loadGoal(thread)?.status === "active") {
+			pauseGoal(thread, "Session restarted; use /ansatz:goal resume to recover the saved goal.");
+			ctx.ui.notify("Saved goal paused after restart. Use /ansatz:goal resume to continue.", "info");
+		}
+	});
+	pi.on("session_shutdown", async (_event, ctx) => {
+		cancelPending(threadIdFor(ctx));
 	});
 
 	// Progress is judged on tool *results*, not tool calls: a failed call is a
@@ -55,18 +113,25 @@ export default function goalExtension(pi: ExtensionAPI) {
 	// for the same idle boundary without suppressing the next work cycle.
 	pi.on("agent_start", async (_event, ctx) => {
 		const threadId = threadIdFor(ctx);
-		queuedContinuations.delete(threadId);
+		cancelPending(threadId);
 		turnToolCalls.set(threadId, 0);
 		turnErrors.delete(threadId);
+		if (loadGoal(threadId)?.status === "active") enforceBudget(ctx);
 	});
 
-	// agent_end fires once per low-level run and carries the messages; a failed
-	// run ends with an assistant message whose stopReason is "error". "aborted"
-	// is excluded on purpose: that is the user pressing Esc, not a broken state.
+	// The final assistant outcome controls this run: abort pauses the goal;
+	// error contributes to the error budget; recovered errors do not.
 	pi.on("agent_end", async (event, ctx) => {
 		const threadId = threadIdFor(ctx);
 		const messages = (event.messages ?? []) as Array<{ stopReason?: string; errorMessage?: string }>;
-		const failed = messages.findLast((message) => message.stopReason === "error");
+		const last = messages.findLast(message => message.stopReason !== undefined);
+		if (last?.stopReason === "aborted") {
+			cancelPending(threadId);
+			if (loadGoal(threadId)?.status === "active") pauseGoal(threadId, "Run interrupted; use /ansatz:goal resume to continue.");
+			turnErrors.delete(threadId);
+			return;
+		}
+		const failed = last?.stopReason === "error" ? last : undefined;
 		if (failed) turnErrors.set(threadId, failed.errorMessage?.trim() || "unknown model or runtime error");
 		else turnErrors.delete(threadId);
 	});
@@ -96,6 +161,9 @@ export default function goalExtension(pi: ExtensionAPI) {
 					`Created: ${g.created_at}`,
 					`Updated: ${g.updated_at}`,
 					`Blocked streak: ${g.blocked_streak}`,
+					`Continuation turns: ${g.turn_count}`,
+					`Model turns: ${g.model_turn_count ?? 0}`,
+					`Deadline: ${g.deadline_at == null ? "none" : new Date(g.deadline_at).toISOString()}`,
 				];
 				if (g.blocked_condition) items.push(`Blocking condition: ${g.blocked_condition}`);
 				if (g.status_reason) items.push(`Reason: ${g.status_reason}`);
@@ -114,6 +182,7 @@ export default function goalExtension(pi: ExtensionAPI) {
 
 			// clear
 			if (lower === "clear" || lower.startsWith("clear ")) {
+				cancelPending(threadId);
 				const reason = trimmed.slice("clear".length).trim();
 				const g = archiveGoal(threadId, reason);
 				if (!g) {
@@ -126,17 +195,20 @@ export default function goalExtension(pi: ExtensionAPI) {
 					return;
 				}
 				ctx.ui.notify("Goal cleared (abandoned).", "info");
+				if (!ctx.isIdle()) abortRun(ctx);
 				return;
 			}
 
 			// pause
 			if (lower === "pause") {
+				cancelPending(threadId);
 				const r = pauseGoal(threadId);
 				if (!r.ok) {
 					ctx.ui.notify(r.error, "error");
 					return;
 				}
 				ctx.ui.notify("Goal paused. Use /ansatz:goal resume to continue.", "info");
+				if (!ctx.isIdle()) abortRun(ctx);
 				return;
 			}
 
@@ -195,7 +267,9 @@ export default function goalExtension(pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			const threadId = threadIdFor(ctx);
 			const objective = (params.objective as string) || "";
-			return { content: [{ type: "text", text: toolCreateGoal(threadId, objective) }], details: {} };
+			const text = toolCreateGoal(threadId, objective);
+			if (!text.startsWith("error:")) enforceBudget(ctx, true);
+			return { content: [{ type: "text", text }], details: {} };
 		},
 	});
 
@@ -235,6 +309,8 @@ export default function goalExtension(pi: ExtensionAPI) {
 	// objective.
 	pi.on("agent_settled", async (_event, ctx) => {
 		const threadId = threadIdFor(ctx);
+		clearTimeout(deadlineTimers.get(threadId));
+		deadlineTimers.delete(threadId);
 		const goal = loadGoal(threadId);
 		if (!shouldQueueGoalContinuation(goal, queuedContinuations.has(threadId))) return;
 
@@ -250,6 +326,25 @@ export default function goalExtension(pi: ExtensionAPI) {
 		}
 
 		queuedContinuations.add(threadId);
-		pi.sendUserMessage(continuationPrompt(outcome.goal), { deliverAs: "followUp" });
+		// Own the pending work locally so pause/clear/shutdown can cancel it.
+		// Send only while idle, without placing it in Pi's non-removable queue.
+		await new Promise<void>(resolve => {
+			continuationResolvers.set(threadId, resolve);
+			const timer = setTimeout(() => {
+				try {
+					continuationTimers.delete(threadId);
+					const current = loadGoal(threadId);
+					if (current?.goal_id !== outcome.goal.goal_id || current.status !== "active") return;
+					if (!ctx.isIdle() || ctx.hasPendingMessages()) return;
+					pi.sendUserMessage(continuationPrompt(current));
+				} catch (error) {
+					ctx.ui.notify(`Continuation failed: ${String(error)}`, "error");
+				} finally {
+					continuationResolvers.delete(threadId);
+					resolve();
+				}
+			}, 0);
+			continuationTimers.set(threadId, timer);
+		});
 	});
 }

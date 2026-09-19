@@ -73,7 +73,10 @@ behavioral coverage. One pass is a regression sample, not proof for all prompts.
 The current case set covers ordinary engineering tests, scientific experiment
 design, specified calculations, single-agent review, failed-writer takeover,
 role-default selection, provider search checks, one-call execution, a changed CLI
-and failed resume. Add or revise cases when a behavior contract changes; keep
+and failed resume. It also covers read-only workflow audits, preservation during
+reinstallation, package versus global Pi delivery, goal lock contention, and
+Flash search evidence on an explicitly selected Responses route (not the default
+Anthropic route). Add or revise cases when a behavior contract changes; keep
 requests and raw context separate from the reviewer’s expected decisions.
 
 Do not store a permanent “all skills pass” claim here. Record each evaluation

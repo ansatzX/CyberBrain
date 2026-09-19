@@ -19,6 +19,7 @@ import {
   type DiscoveryCache,
   type ModelProbe,
 } from "../lib/third-party/cuhksz.ts";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { availableModel } from "./fixtures.ts";
 import cuhkszExtension from "../extensions/cuhksz.ts";
 
@@ -66,30 +67,31 @@ test("normalizeModel applies 256K defaults to unknown models", () => {
 });
 
 test("normalizeModel applies measured params for known models", () => {
-  // glm-5-fp8 实测 max output=500000（网关硬限制），必须覆盖 256K 默认
+  // 用户配置固定为 256K。
   const glm = normalizeModel(
     availableModel("glm-5-fp8"),
     undefined,
     normalizeOptions,
   );
-  assert.equal(glm.contextWindow, 500_000);
-  assert.equal(glm.maxTokens, 500_000);
+  assert.equal(glm.contextWindow, 262_144);
+  assert.equal(glm.maxTokens, 262_144);
   assert.equal(glm.reasoning, false);
 });
 
-test("probe context overrides the known table", () => {
+test("GLM configured context overrides probe metadata", () => {
   const probe: ModelProbe = {
     id: "glm-5-fp8",
     healthy: true,
-    contextWindow: 200_000,
+    contextWindow: 500_000,
+    maxTokens: 500_000,
   };
   const model = normalizeModel(
     availableModel("glm-5-fp8"),
     probe,
     normalizeOptions,
   );
-  assert.equal(model.contextWindow, 200_000);
-  assert.equal(model.maxTokens, 500_000);
+  assert.equal(model.contextWindow, 262_144);
+  assert.equal(model.maxTokens, 262_144);
 });
 
 test("normalizeModel rejects a model without an ID", () => {
@@ -377,6 +379,7 @@ const discoveryConfig = {
   timeoutMs: 50,
   probeTimeoutMs: 50,
   cachePath: "/unused/cache.json",
+  modelAllowlist: ["qwen3.5-27b", "dsv4pro", "glm-5-fp8"],
   normalizeOptions,
 };
 
@@ -429,16 +432,19 @@ test("fresh complete cache returns immediately without network access", async ()
     probes: [{ id: "cached", healthy: true }],
   };
   let fetches = 0;
-  const models = await discoverModels(discoveryConfig, {
-    fetchImpl: async () => {
-      fetches++;
-      throw new Error("network must not run for fresh cache");
+  const models = await discoverModels(
+    { ...discoveryConfig, modelAllowlist: ["cached"] },
+    {
+      fetchImpl: async () => {
+        fetches++;
+        throw new Error("network must not run for fresh cache");
+      },
+      readCacheImpl: async () => cache,
+      writeCacheImpl: async () =>
+        assert.fail("fresh cache must not be rewritten"),
+      warn: () => undefined,
     },
-    readCacheImpl: async () => cache,
-    writeCacheImpl: async () =>
-      assert.fail("fresh cache must not be rewritten"),
-    warn: () => undefined,
-  });
+  );
 
   assert.equal(fetches, 0);
   assert.deepEqual(
@@ -465,8 +471,8 @@ test("live discovery probes models, applies measured params and filters unhealth
     ["qwen3.5-27b", "glm-5-fp8"],
   );
   assert.equal(models[0].contextWindow, 262_144);
-  assert.equal(models[1].contextWindow, 500_000);
-  assert.equal(models[1].maxTokens, 500_000);
+  assert.equal(models[1].contextWindow, 262_144);
+  assert.equal(models[1].maxTokens, 262_144);
   assert.match(warnings.join("\n"), /skipping unhealthy model dsv4pro/);
   assert.equal(written.length, 1);
   assert.equal(written[0].version, 2);
@@ -482,12 +488,15 @@ test("discovery falls back to cache when live discovery fails", async () => {
     probes: [{ id: "cached", healthy: true }],
   };
   const warnings: string[] = [];
-  const models = await discoverModels(discoveryConfig, {
-    fetchImpl: async () => jsonResponse({ error: "down" }, 503),
-    readCacheImpl: async () => cache,
-    writeCacheImpl: async () => undefined,
-    warn: (message) => warnings.push(message),
-  });
+  const models = await discoverModels(
+    { ...discoveryConfig, modelAllowlist: ["cached"] },
+    {
+      fetchImpl: async () => jsonResponse({ error: "down" }, 503),
+      readCacheImpl: async () => cache,
+      writeCacheImpl: async () => undefined,
+      warn: (message) => warnings.push(message),
+    },
+  );
 
   assert.deepEqual(
     models.map((model) => model.id),
@@ -530,17 +539,20 @@ test("discovery treats live empty availability as authoritative", async () => {
 
 test("cache write failure warns without discarding live discovery", async () => {
   const warnings: string[] = [];
-  const models = await discoverModels(discoveryConfig, {
-    fetchImpl: async (input) =>
-      String(input).endsWith("/v1/models")
-        ? jsonResponse({ data: [availableModel("one")] })
-        : jsonResponse({ data: { id: "one" } }),
-    readCacheImpl: async () => undefined,
-    writeCacheImpl: async () => {
-      throw new Error("disk full");
+  const models = await discoverModels(
+    { ...discoveryConfig, modelAllowlist: ["one"] },
+    {
+      fetchImpl: async (input) =>
+        String(input).endsWith("/v1/models")
+          ? jsonResponse({ data: [availableModel("one")] })
+          : jsonResponse({ data: { id: "one" } }),
+      readCacheImpl: async () => undefined,
+      writeCacheImpl: async () => {
+        throw new Error("disk full");
+      },
+      warn: (message) => warnings.push(message),
     },
-    warn: (message) => warnings.push(message),
-  });
+  );
 
   assert.deepEqual(
     models.map((model) => model.id),
@@ -584,6 +596,9 @@ test("registerCUHKSZ discovers and registers the configured provider", async () 
       CUHKSZ_DISCOVERY_TIMEOUT_MS: "1234",
       CUHKSZ_PROBE_TIMEOUT_MS: "2000",
       CUHKSZ_CACHE_PATH: "/custom/cache.json",
+      // registerCUHKSZ 也会刷新 models.json；不加这行会把 fixture 写进
+      // 开发者真实的 ~/.pi/agent/models.json。
+      CUHKSZ_MODELS_JSON_REFRESH: "off",
     },
     {
       fetchImpl: liveFetch,
@@ -606,13 +621,13 @@ test("registerCUHKSZ discovers and registers the configured provider", async () 
     contextWindow: number;
     maxTokens: number;
   }>;
+  // 默认白名单只有 glm-5-fp8：网关另列的 qwen3.5-27b / dsv4pro 不再登记
   assert.deepEqual(
     models.map((model) => model.id),
-    ["qwen3.5-27b", "glm-5-fp8"],
+    ["glm-5-fp8"],
   );
   assert.equal(models[0].contextWindow, 262_144);
-  assert.equal(models[1].contextWindow, 500_000);
-  assert.equal(models[1].maxTokens, 500_000);
+  assert.equal(models[0].maxTokens, 262_144);
 });
 
 test("registerCUHKSZ uses the default local origin", async () => {
@@ -623,12 +638,17 @@ test("registerCUHKSZ uses the default local origin", async () => {
         registrations.push({ config });
       },
     },
-    { CUHKSZ_API_KEY: "secret-key" },
+    {
+      CUHKSZ_API_KEY: "secret-key",
+      // 旧环境变量不能改变固定单模型配置。
+      CUHKSZ_MODELS: "one",
+      CUHKSZ_MODELS_JSON_REFRESH: "off",
+    },
     {
       fetchImpl: async (input) =>
         String(input).endsWith("/v1/models")
-          ? jsonResponse({ data: [availableModel("one")] })
-          : jsonResponse({ data: { id: "one" } }),
+          ? jsonResponse({ data: [availableModel("glm-5-fp8")] })
+          : jsonResponse({ data: { id: "glm-5-fp8" } }),
       readCacheImpl: async () => undefined,
       writeCacheImpl: async () => undefined,
       warn: () => undefined,
@@ -638,9 +658,155 @@ test("registerCUHKSZ uses the default local origin", async () => {
   assert.equal(registrations[0].config.baseUrl, "http://10.27.130.30:32788/v1");
 });
 
+test("discovery only probes and caches allowlisted models", async () => {
+  const probed: string[] = [];
+  const warnings: string[] = [];
+  const cached: DiscoveryCache[] = [];
+  const models = await discoverModels(
+    { ...discoveryConfig, modelAllowlist: ["glm-5-fp8"] },
+    {
+      fetchImpl: async (input, init) => {
+        if (String(input).endsWith("/v1/models")) {
+          return jsonResponse({
+            data: [
+              availableModel("qwen3-30b"),
+              availableModel("qwen3.5-27b"),
+              availableModel("dsv4pro"),
+              availableModel("gemma4-31b"),
+              availableModel("glm5.1-ae"),
+              availableModel("glm-5-fp8"),
+            ],
+          });
+        }
+        const body = JSON.parse(String(init?.body ?? "{}")) as { model?: string };
+        probed.push(String(body.model));
+        return probeError(
+          "max_completion_tokens is too large: 999999.This model supports at most 500000 completion tokens.",
+        );
+      },
+      readCacheImpl: async () => undefined,
+      writeCacheImpl: async (_path, cache) => {
+        cached.push(cache);
+      },
+      warn: (message) => warnings.push(message),
+    },
+  );
+
+  // 白名单外的 5 个模型既不探测也不告警（不再刷屏）
+  assert.deepEqual(probed, ["glm-5-fp8"]);
+  assert.deepEqual(models.map((model) => model.id), ["glm-5-fp8"]);
+  assert.equal(models[0].contextWindow, 262_144);
+  assert.deepEqual(warnings, []);
+  // 缓存同样只存白名单模型，否则下次启动会把死模型写回来
+  assert.deepEqual(cached[0].models.map((model) => model.id), ["glm-5-fp8"]);
+  assert.deepEqual(cached[0].probes.map((probe) => probe.id), ["glm-5-fp8"]);
+});
+
+test("discovery rejects a gateway offering none of the allowlisted models", async () => {
+  await assert.rejects(
+    discoverModels(
+      { ...discoveryConfig, modelAllowlist: ["glm-5-fp8"] },
+      {
+        fetchImpl: async (input) =>
+          String(input).endsWith("/v1/models")
+            ? jsonResponse({ data: [availableModel("qwen3-30b")] })
+            : jsonResponse({ error: "unexpected" }, 500),
+        readCacheImpl: async () => undefined,
+        writeCacheImpl: async () => undefined,
+        warn: () => undefined,
+      },
+    ),
+    /offers none of the configured models \(glm-5-fp8\)/,
+  );
+});
+
+test("registerCUHKSZ mirrors the registered provider into models.json", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "cuhksz-models-json-"));
+  const path = join(dir, "models.json");
+  try {
+    const registrations: Array<{ name: string; config: Record<string, unknown> }> = [];
+    await registerCUHKSZ(
+      {
+        registerProvider: (name: string, config: Record<string, unknown>) => {
+          registrations.push({ name, config });
+        },
+      },
+      {
+        CUHKSZ_API_KEY: "secret-key",
+        CUHKSZ_ORIGIN: "http://example.test:32788",
+        CUHKSZ_MODELS_JSON_PATH: path,
+      },
+      {
+        fetchImpl: liveFetch,
+        readCacheImpl: async () => undefined,
+        writeCacheImpl: async () => undefined,
+        warn: () => undefined,
+      },
+    );
+
+    const written = JSON.parse(await readFile(path, "utf8"));
+    // 必须与进程内注册逐字一致，否则 models.json 直读方会与进程内漂移
+    assert.deepEqual(written.providers.cuhksz, registrations[0].config);
+    assert.deepEqual(
+      written.providers.cuhksz.models.map((model: { id: string }) => model.id),
+      ["glm-5-fp8"],
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("CUHKSZ_MODELS_JSON_REFRESH=off skips the models.json mirror", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "cuhksz-models-json-off-"));
+  const path = join(dir, "models.json");
+  try {
+    const registrations: string[] = [];
+    await registerCUHKSZ(
+      { registerProvider: (name: string) => registrations.push(name) },
+      {
+        CUHKSZ_API_KEY: "secret-key",
+        CUHKSZ_MODELS_JSON_PATH: path,
+        CUHKSZ_MODELS_JSON_REFRESH: "off",
+      },
+      {
+        fetchImpl: liveFetch,
+        readCacheImpl: async () => undefined,
+        writeCacheImpl: async () => undefined,
+        warn: () => undefined,
+      },
+    );
+
+    assert.deepEqual(registrations, ["cuhksz"]);
+    await assert.rejects(readFile(path, "utf8"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("cuhksz extension degrades to disabled instead of failing to load", async () => {
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  const originalKey = process.env.CUHKSZ_API_KEY;
+  console.warn = ((message: unknown) => {
+    warnings.push(String(message));
+  }) as typeof console.warn;
+  delete process.env.CUHKSZ_API_KEY;
+  try {
+    await cuhkszExtension({
+      registerProvider: () => assert.fail("must not register"),
+    } as unknown as ExtensionAPI);
+  } finally {
+    console.warn = originalWarn;
+    if (originalKey === undefined) delete process.env.CUHKSZ_API_KEY;
+    else process.env.CUHKSZ_API_KEY = originalKey;
+  }
+
+  // 缺 key 只降级为「provider 不可用」：不抛错（pi 不会再报 Failed to load extension）
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /CUHKSZ provider disabled: CUHKSZ_API_KEY is not set/);
+});
+
 test("cuhksz extension is importable and exposes a callable default", () => {
-  // 隔离性回归：CUHKSZ 本地部署不可达/未配置时，
-  // 扩展注册失败只影响自身（pi 按扩展文件隔离错误）。
   assert.equal(typeof cuhkszExtension, "function");
   assert.equal(typeof KNOWN_MODEL_PARAMS["glm-5-fp8"], "object");
 });

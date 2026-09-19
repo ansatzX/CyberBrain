@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -29,6 +30,155 @@ class MigrationTests(unittest.TestCase):
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO / "pi" / relative, target)
         return target
+
+    def test_parent_symlink_rejected_without_touching_external_file(self):
+        outside = Path(self.temp.name) / 'outside'
+        outside.mkdir()
+        target = outside / 'goal.ts'
+        target.write_bytes((REPO / 'pi/extensions/goal.ts').read_bytes())
+        self.home.mkdir()
+        (self.home / 'extensions').symlink_to(outside, target_is_directory=True)
+        before = target.read_bytes()
+        with patch.object(installer, 'run_pi') as run:
+            with self.assertRaisesRegex(SystemExit, 'symlink in managed path'):
+                installer.install(self.args)
+            run.assert_not_called()
+        self.assertEqual(target.read_bytes(), before)
+        self.assertFalse(self.manifest.exists())
+
+    def test_nested_unknown_links_rejected(self):
+        for kind in ('directory', 'file', 'dangling'):
+            with self.subTest(kind=kind):
+                skill = self.home / 'skills/pi-extension-dev'
+                skill.mkdir(parents=True, exist_ok=True)
+                (skill / 'SKILL.md').write_bytes((REPO / 'pi/skills/pi-extension-dev/SKILL.md').read_bytes())
+                outside = Path(self.temp.name) / kind
+                if kind == 'directory':
+                    outside.mkdir()
+                elif kind == 'file':
+                    outside.write_text('private fixture')
+                link = skill / 'user-link'
+                link.symlink_to(outside, target_is_directory=kind == 'directory')
+                with patch.object(installer, 'run_pi') as run:
+                    with self.assertRaisesRegex(SystemExit, 'unmanaged conflict'):
+                        installer.install(self.args)
+                    run.assert_not_called()
+                self.assertTrue(link.is_symlink())
+                link.unlink()
+
+    def test_copy_resource_preserves_nested_links(self):
+        source = Path(self.temp.name) / 'resource'
+        source.mkdir()
+        (source / 'link').symlink_to('../not-present')
+        target = Path(self.temp.name) / 'copy'
+        installer.copy_resource(source, target)
+        self.assertTrue((target / 'link').is_symlink())
+        self.assertEqual(os.readlink(target / 'link'), '../not-present')
+
+    def test_empty_or_special_resource_is_not_assumed_owned(self):
+        skill = self.home / 'skills/pi-extension-dev'
+        skill.mkdir(parents=True)
+        with patch.object(installer, 'run_pi') as run:
+            with self.assertRaisesRegex(SystemExit, 'empty resource directory'):
+                installer.install(self.args)
+            run.assert_not_called()
+        skill.rmdir()
+        fifo = self.home / 'extensions/goal.ts'
+        fifo.parent.mkdir()
+        os.mkfifo(fifo)
+        with patch.object(installer, 'run_pi') as run:
+            with self.assertRaisesRegex(SystemExit, 'special resource'):
+                installer.install(self.args)
+            run.assert_not_called()
+
+    def test_restore_rejects_manifest_escape_and_unknown_resource(self):
+        self.home.mkdir()
+        backup = Path(self.temp.name) / 'fixture'
+        backup.write_text('fixture')
+        for key in ('../escaped.txt', str(Path(self.temp.name) / 'absolute.txt'), 'auth.json'):
+            with self.subTest(key=key):
+                value = {'version': 1, 'source': str(REPO / 'pi'), 'legacy_backups': {key: str(backup)}}
+                self.manifest.write_text(json.dumps(value))
+                before = self.manifest.read_bytes()
+                with patch.object(installer, 'run_pi') as run:
+                    with self.assertRaisesRegex(SystemExit, 'invalid manifest backup entry'):
+                        installer.uninstall(self.args)
+                    run.assert_not_called()
+                self.assertEqual(self.manifest.read_bytes(), before)
+        self.assertFalse((Path(self.temp.name) / 'escaped.txt').exists())
+
+    def test_restore_rejects_backup_outside_owned_root(self):
+        self.home.mkdir()
+        backup = Path(self.temp.name) / 'outside'
+        backup.write_text('fixture')
+        self.manifest.write_text(json.dumps({'version': 1, 'source': str(REPO / 'pi'), 'legacy_backups': {'extensions/goal.ts': str(backup)}}))
+        with patch.object(installer, 'run_pi') as run:
+            with self.assertRaisesRegex(SystemExit, 'outside managed directory'):
+                installer.uninstall(self.args)
+            run.assert_not_called()
+        self.assertEqual(backup.read_text(), 'fixture')
+
+    def test_restore_rejects_symlink_parent(self):
+        self.place('extensions/goal.ts')
+        with patch.object(installer, 'run_pi'):
+            installer.install(self.args)
+        (self.home / 'extensions').rmdir()
+        outside = Path(self.temp.name) / 'outside'
+        outside.mkdir()
+        (self.home / 'extensions').symlink_to(outside, target_is_directory=True)
+        with patch.object(installer, 'run_pi') as run:
+            with self.assertRaisesRegex(SystemExit, 'symlink in managed path'):
+                installer.uninstall(self.args)
+            run.assert_not_called()
+        self.assertFalse((outside / 'goal.ts').exists())
+
+    def test_installer_lock_blocks_other_process_and_releases_after_failure(self):
+        def competing_operation(*args):
+            result = subprocess.run([sys.executable, '-B', str(REPO / 'tools/manage-pi.py'),
+                'install', '--pi-home', str(self.home), '--repo-root', str(REPO),
+                '--pi-bin', '/not-executed'], capture_output=True, text=True, timeout=5)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('another installer operation', result.stderr)
+            raise RuntimeError('simulated command failure')
+        with patch.object(installer, 'run_pi', side_effect=competing_operation):
+            with self.assertRaisesRegex(RuntimeError, 'simulated'):
+                installer.install(self.args)
+        with patch.object(installer, 'run_pi') as run:
+            installer.install(self.args)
+            run.assert_called_once()
+
+    def test_dry_run_does_not_create_home_or_lock(self):
+        self.args.dry_run = True
+        installer.install(self.args)
+        self.assertFalse(self.home.exists())
+
+    def test_change_during_backup_prevents_removal(self):
+        target = self.place('extensions/goal.ts')
+        original_backup = installer.backup_legacy
+        def changed(*args):
+            original_backup(*args)
+            target.write_text('user edit during backup')
+        with patch.object(installer, 'backup_legacy', side_effect=changed), patch.object(installer, 'run_pi') as run:
+            with self.assertRaises(SystemExit):
+                installer.install(self.args)
+            run.assert_not_called()
+        self.assertEqual(target.read_text(), 'user edit during backup')
+        self.assertFalse(self.manifest.exists())
+
+    def test_sensitive_state_is_preserved(self):
+        self.home.mkdir()
+        markers = {'auth.json': 'secret fixture', 'settings.json': '{"enabledModels":["mine"]}',
+                   'sessions/session.jsonl': 'session fixture', 'goals/task.json': 'goal fixture'}
+        for name, text in markers.items():
+            path = self.home / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        with patch.object(installer, 'run_pi'):
+            installer.install(self.args)
+            installer.update(self.args)
+            installer.uninstall(self.args)
+        for name, text in markers.items():
+            self.assertEqual((self.home / name).read_text(), text)
 
     def test_failed_first_install_restores_files(self):
         target = self.place("extensions/goal.ts")
@@ -239,13 +389,22 @@ class MigrationTests(unittest.TestCase):
         self.assertTrue(installer.resources_match(source, target))
 
     def test_doctor_propagates_selected_home_to_every_child(self):
-        with patch.dict(os.environ, {"PI_CODING_AGENT_DIR": "/ambient-home", "AIHUBMIX_API_KEY": "test", "DEEPSEEK_API_KEY": "test"}):
+        with patch.dict(os.environ, {"PI_CODING_AGENT_DIR": "/ambient-home"}, clear=True):
             with patch.object(installer, "load_manifest", return_value={"version": 1, "source": str(REPO / "pi")}), patch.object(installer, "settings_contains_source", return_value=True), patch.object(installer.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)) as run:
                 self.assertEqual(installer.doctor(self.args), 0)
-            self.assertGreater(len(run.call_args_list), 0)
+            self.assertEqual(len(run.call_args_list), 1)
+            command = run.call_args.args[0]
+            self.assertEqual(command[:4], ["node", "--experimental-strip-types", "--input-type=module", "-e"])
             for call in run.call_args_list:
                 self.assertEqual(call.kwargs["env"]["PI_CODING_AGENT_DIR"], str(self.home.resolve()))
             self.assertEqual(os.environ["PI_CODING_AGENT_DIR"], "/ambient-home")
+
+    def test_full_doctor_adds_developer_suites(self):
+        commands = installer.doctor_commands(REPO, full=True)
+        self.assertEqual(len(commands), 3)
+        self.assertEqual(commands[0][:4], ["node", "--experimental-strip-types", "--input-type=module", "-e"])
+        self.assertEqual(commands[1][:3], ["node", "--experimental-strip-types", "--test"])
+        self.assertTrue(commands[2][1].endswith("manage-pi.test.py"))
 
 
 if __name__ == "__main__":

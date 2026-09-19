@@ -179,6 +179,25 @@ design-doc references in the same change.
 
 ## Validation
 
+### Model naming and migration acceptance
+
+- When asked to unify model names, align both model IDs and display names in
+  runtime registration and persisted catalogs. Do not treat an ID-only change
+  as complete; provider labels remain distinct from model names.
+- Inspect the selected host home, package source, project overrides, scoped
+  model filters, defaults, and running-session state for old references.
+  Preserve unrelated preferences. Changes to user preferences require user
+  authorization; report needed migrations rather than silently skipping them.
+  This does not authorize installers to manage user model preferences.
+- Test exact IDs and display names, and verify the actual model selector in
+  each requested consumer (for example Pi and Raft). A catalog file or unit
+  test alone does not establish UI acceptance. Report any consumer that could
+  not be verified, and distinguish catalog refresh, session reload, and process
+  restart instead of assuming they are equivalent.
+- Do not rewrite historical sessions or unrelated providers to remove old
+  strings. Keep legacy-input regression cases when they still test supported
+  defensive behavior.
+
 Use focused validation that matches the change. Run commands from the repository root.
 
 For skills, examples or their validation infrastructure:

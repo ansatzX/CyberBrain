@@ -1,5 +1,35 @@
 [
   {
+    "id": "workflow-audit-only",
+    "request": "检查这个项目的 Brain workflow 安装是否正确，先不要修改。",
+    "context": "项目已有 .brain/vendor 和 .specify；安装包版本尚未核对。只能读取文件，不得执行安装脚本。",
+    "skills": ["plugins/brain/skills/tame-dev-workflows/SKILL.md"]
+  },
+  {
+    "id": "workflow-reinstall-conflict",
+    "request": "重新安装这个项目的工作流，保留我改过的配置和角色。",
+    "context": "项目 .specify 和 .codex/agents/superpowers-spec-reviewer.toml 有用户修改，没有所有权清单。仅模拟下一步，不实际安装。",
+    "skills": ["plugins/brain/skills/tame-dev-workflows/SKILL.md"]
+  },
+  {
+    "id": "pi-package-delivery",
+    "request": "给 CyberBrain 的 Pi 包加一个只读 slash 命令并验证。",
+    "context": "cwd 为 CyberBrain 仓库；PI_CODING_AGENT_DIR=/tmp/custom-pi-home，该 home 已通过 packages 引用本仓库 pi/；用户未要求全局安装。仅描述交付和验证步骤，不执行。",
+    "skills": ["pi/skills/pi-extension-dev/SKILL.md"]
+  },
+  {
+    "id": "goal-lock-contention",
+    "request": "goal 写状态时锁已存在 15 秒，另一个 writer 是否仍运行还不清楚，怎么处理？",
+    "context": "只能读取本仓库代码和测试，不允许删除真实锁。",
+    "skills": ["pi/skills/pi-extension-dev/SKILL.md"]
+  },
+  {
+    "id": "flash-search-evidence",
+    "request": "我认为 Flash Responses 支持搜索，为已批准的 Flash 子代理确认这个能力。",
+    "context": "本次明确使用 api.deepseek.com 的 Responses 路径（CYBERBRAIN_DEEPSEEK_PROTOCOL=responses），不是默认 Anthropic 路径；官方文档称此路径 Flash 内置 web_search 被忽略，本地 Responses 分支仅给 Pro 注入；尚未提供此路径实际搜索调用的响应。禁止发网络请求、更换模型或切换协议。",
+    "skills": ["pi/skills/pick-model/SKILL.md"]
+  },
+  {
     "id": "engineering-test",
     "request": "运行已有 parser 单元测试，报告结果。",
     "context": "测试命令和依赖已知；不要求性能或科学结论。",

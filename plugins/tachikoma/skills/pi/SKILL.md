@@ -23,7 +23,7 @@ The current help output is authoritative. Pi has no sandbox or permission-mode f
 
 Omit `--model`, `--provider`, and `--thinking` by default. They inherit the current Pi configuration or resumed session. Add one only when the user explicitly requests it and the installed interface supports the value. `--model` accepts a `provider/id` pattern with an optional `:<thinking>` suffix.
 
-Pi loads the user's ambient packages, extensions, and skills by default, which can include model providers (for example Cyberbrain's `deepseek-responses`). Use `--no-extensions` / `--no-skills` only when an isolated run is explicitly wanted, and state that it drops those providers.
+Pi loads the user's ambient packages, extensions, and skills by default, which can include model providers (for example Cyberbrain's `deepseek-full`, distinct from built-in `deepseek`). Use `--no-extensions` / `--no-skills` only when an isolated run is explicitly wanted. Disabling extension discovery can remove extension-provided providers and request hooks; disabling skills alone does not disable provider extensions. Preserve the authorized environment/protocol; `deepseek-full` defaults to Anthropic, with `CYBERBRAIN_DEEPSEEK_PROTOCOL=responses` as an explicit alternative. Do not infer search support from the model name or silently change the route.
 
 ## Command patterns
 

@@ -8,14 +8,23 @@
 //   （后端 DNS 挂掉的模型会秒回网络层错误，探测判定 unhealthy 后不注册）。
 //   试探请求全部在网关/后端校验层被拒绝，不触发真实生成，耗时毫秒级。
 //
-// 已实测参数（2026-08-18 对本部署）固化在 KNOWN_MODEL_PARAMS，避免每次启动
-// 都依赖探测；探测结果优先，表格次之，最后是默认值（上下文 256K）。
+// GLM 上下文固定为用户配置的 256K，缓存和探测不能覆盖；输出上限不超过上下文。
+//
+// 只登记 glm-5-fp8；其余模型既不探测也不告警。
+// 每次启动还会把 provider 写回 models.json（见 models-json.ts）：registerProvider
+// 只对当前 pi 进程有效，直读 models.json 的消费方看不到。
 
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+
+import { agentDir } from "../agent-paths.ts";
+import {
+  defaultModelsJsonPath,
+  refreshModelsJsonProvider,
+  type ModelsJsonDependencies,
+} from "./models-json.ts";
 
 // 探测与表格都没给出上下文时的默认值（256K，本部署基线）。
 const DEFAULT_CONTEXT_WINDOW = 262_144;
@@ -23,6 +32,8 @@ const DEFAULT_CONTEXT_WINDOW = 262_144;
 const DEFAULT_MAX_TOKENS = 16_384;
 // 试探用超限 max_tokens：必定被网关/后端校验层拒绝，不会进入真实生成。
 const PROBE_MAX_TOKENS = 999_999;
+// 固定单模型，不接受环境变量扩展模型列表。
+export const DEFAULT_MODEL_ALLOWLIST: readonly string[] = ["glm-5-fp8"];
 
 export type AvailableModel = {
   id?: string;
@@ -60,17 +71,10 @@ export type ModelCapabilities = {
 };
 
 /**
- * 本部署实测参数（one-api 网关校验 / vLLM 校验错误）。
- * contextWindow/maxTokens 为该模型真实上限；探测结果优先于此表。
- *
- * 只登记当前可用的模型：本部署其余模型（qwen3-30b / qwen3.5-27b / dsv4pro /
- * gemma4-31b / glm5.1-ae）后端 DNS 已失效，探测判定 unhealthy 后不会注册，
- * 参数一并移除。若后端恢复，探测会重新给出真实参数，无需在此表补录。
+ * 本部署的客户端配置上限，不作为后端真实容量的测量结果。
  */
 export const KNOWN_MODEL_PARAMS: Record<string, ModelCapabilities> = {
-  // glm-5-fp8 网关实测 max output=500000（校验错误 "at most 500000 completion
-  // tokens"）；生成极慢，真实请求可能长时间无首 token。
-  "glm-5-fp8": { contextWindow: 500_000, maxTokens: 500_000, reasoning: false },
+  "glm-5-fp8": { contextWindow: 262_144, maxTokens: 262_144, reasoning: false },
 };
 
 /**
@@ -205,17 +209,17 @@ export function normalizeModel(
 
   const known = KNOWN_MODEL_PARAMS[id];
   const contextWindow =
-    probe?.contextWindow ??
     known?.contextWindow ??
+    probe?.contextWindow ??
     options.defaultContextWindow;
   // 已知模型（表格给出上下文）默认按上下文放开输出上限；
   // 未知模型保守用 defaultMaxTokens。
-  const maxTokens =
+  const maxTokens = Math.min(contextWindow,
     probe?.maxTokens ??
     known?.maxTokens ??
     (known?.contextWindow !== undefined
       ? contextWindow
-      : options.defaultMaxTokens);
+      : options.defaultMaxTokens));
   const reasoning =
     known?.reasoning ??
     (probe?.contextWindow !== undefined && isReasoningModel(id));
@@ -400,6 +404,8 @@ export type DiscoveryConfig = {
   probeTimeoutMs: number;
   cachePath: string;
   cacheMaxAgeMs?: number;
+  /** 只登记这些模型 id；网关列表里的其它模型不探测、不告警。 */
+  modelAllowlist: readonly string[];
   normalizeOptions: NormalizeOptions;
 };
 
@@ -408,7 +414,25 @@ export type DiscoveryDependencies = {
   readCacheImpl?: typeof readCache;
   writeCacheImpl?: typeof writeCache;
   warn?: (message: string) => void;
+  modelsJson?: ModelsJsonDependencies;
 };
+
+/** 白名单过滤（顺带去重与去空 id），缓存与实时列表共用。 */
+export function filterAllowlisted(
+  available: AvailableModel[],
+  allowlist: readonly string[],
+): AvailableModel[] {
+  const allowed = new Set(allowlist);
+  const seen = new Set<string>();
+  const filtered: AvailableModel[] = [];
+  for (const entry of available) {
+    const id = entry.id?.trim();
+    if (!id || !allowed.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    filtered.push(entry);
+  }
+  return filtered;
+}
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
@@ -424,40 +448,44 @@ export async function discoverModels(
   const warn = dependencies.warn ?? ((message: string) => console.warn(message));
   const cache = await readCacheImpl(config.cachePath, config.origin);
   const cacheMaxAgeMs = config.cacheMaxAgeMs ?? 6 * 60 * 60 * 1000;
+  // 白名单外的模型既不探测也不告警（本部署其余模型后端 DNS 已失效）。
+  const cachedModels = filterAllowlisted(cache?.models ?? [], config.modelAllowlist);
 
-  if (
-    cache &&
-    cache.models.length > 0 &&
-    Date.now() - Date.parse(cache.fetchedAt) <= cacheMaxAgeMs
-  ) {
-    const models = normalizeAvailable(cache.models, cache.probes, config.normalizeOptions);
-    const unhealthy = listUnhealthy(cache.models, cache.probes);
-    for (const entry of unhealthy) {
+  // 归一化 + 报告被跳过的 unhealthy 模型：缓存命中/缓存回退/实时探测共用。
+  const buildModels = (
+    sources: AvailableModel[],
+    probes: ModelProbe[],
+  ): ProviderModel[] => {
+    const models = normalizeAvailable(sources, probes, config.normalizeOptions);
+    for (const entry of listUnhealthy(sources, probes)) {
       warn(`CUHKSZ skipping unhealthy model ${entry.id}: ${entry.error ?? "unknown"}`);
     }
     return models;
+  };
+
+  if (
+    cache &&
+    cachedModels.length > 0 &&
+    Date.now() - Date.parse(cache.fetchedAt) <= cacheMaxAgeMs
+  ) {
+    return buildModels(cachedModels, cache.probes);
   }
 
   const modelsUrl = `${config.origin}/v1/models`;
-  let available: AvailableModel[];
+  let offered: AvailableModel[];
   try {
-    available = await fetchAvailableModels(
+    offered = await fetchAvailableModels(
       modelsUrl,
       config.apiKey,
       config.timeoutMs,
       fetchImpl,
     );
   } catch (error) {
-    if (cache && cache.models.length > 0) {
+    if (cache && cachedModels.length > 0) {
       warn(
         `CUHKSZ live model discovery failed; using cache from ${cache.fetchedAt}: ${asError(error).message}`,
       );
-      const models = normalizeAvailable(cache.models, cache.probes, config.normalizeOptions);
-      const unhealthy = listUnhealthy(cache.models, cache.probes);
-      for (const entry of unhealthy) {
-        warn(`CUHKSZ skipping unhealthy model ${entry.id}: ${entry.error ?? "unknown"}`);
-      }
-      return models;
+      return buildModels(cachedModels, cache.probes);
     }
     throw new Error(
       [
@@ -469,11 +497,18 @@ export async function discoverModels(
 
   // 与 aihubmix 一致：线上返回空列表视为权威结果（服务可用但没有模型），
   // 不回退到缓存，直接报错。
-  if (available.length === 0) {
+  if (offered.length === 0) {
     throw new Error("CUHKSZ /v1/models returned no available models");
   }
 
-  // 并行探测所有模型：解析真实参数 + 判定可达性（全部为校验层秒回，毫秒级）。
+  const available = filterAllowlisted(offered, config.modelAllowlist);
+  if (available.length === 0) {
+    throw new Error(
+      `CUHKSZ /v1/models offers none of the configured models (${config.modelAllowlist.join(", ")}).`,
+    );
+  }
+
+  // 并行探测白名单模型：解析真实参数 + 判定可达性（全部为校验层秒回，毫秒级）。
   const probes = await Promise.all(
     available.map((model) =>
       probeModel(
@@ -486,11 +521,7 @@ export async function discoverModels(
     ),
   );
 
-  const models = normalizeAvailable(available, probes, config.normalizeOptions);
-  const unhealthy = listUnhealthy(available, probes);
-  for (const entry of unhealthy) {
-    warn(`CUHKSZ skipping unhealthy model ${entry.id}: ${entry.error ?? "unknown"}`);
-  }
+  const models = buildModels(available, probes);
 
   const newCache: DiscoveryCache = {
     version: 2,
@@ -545,11 +576,12 @@ export async function registerCUHKSZ(
       ),
       cachePath:
         environment.CUHKSZ_CACHE_PATH ||
-        join(homedir(), ".pi", "agent", "cache", "cuhksz-models.json"),
+        join(agentDir(environment), "cache", "cuhksz-models.json"),
       cacheMaxAgeMs: parsePositiveNumber(
         environment.CUHKSZ_CACHE_MAX_AGE_MS,
         6 * 60 * 60 * 1000,
       ),
+      modelAllowlist: DEFAULT_MODEL_ALLOWLIST,
       normalizeOptions: {
         // 本地部署实测上下文基线 256K；成本恒为 0（本地免费）。
         defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
@@ -563,13 +595,42 @@ export async function registerCUHKSZ(
     throw new Error("CUHKSZ discovery produced no usable models");
   }
 
-  pi.registerProvider("cuhksz", {
+  const providerConfig = {
     name: "CUHKSZ",
     baseUrl: `${origin}/v1`,
     apiKey: "$CUHKSZ_API_KEY",
     api: "openai-completions",
     models,
-  });
+  };
+
+  // 与 aihubmix 一致：把 provider 写回 models.json（registerProvider 只对当前进程
+  // 生效，直读 models.json 的消费方看不到）。刷新失败只告警，不影响注册。
+  if (modelsJsonRefreshEnabled(environment)) {
+    const warn = dependencies.warn ?? ((message: string) => console.warn(message));
+    try {
+      await refreshModelsJsonProvider(
+        {
+          path:
+            environment.CUHKSZ_MODELS_JSON_PATH?.trim() ||
+            defaultModelsJsonPath(environment),
+          providerId: "cuhksz",
+          config: providerConfig,
+        },
+        dependencies.modelsJson,
+      );
+    } catch (error) {
+      warn(
+        `CUHKSZ models.json refresh failed (provider still registered in-process): ${asError(error).message}`,
+      );
+    }
+  }
+
+  pi.registerProvider("cuhksz", providerConfig);
+}
+
+function modelsJsonRefreshEnabled(environment: Environment): boolean {
+  const flag = environment.CUHKSZ_MODELS_JSON_REFRESH?.trim().toLowerCase();
+  return flag !== "0" && flag !== "false" && flag !== "off" && flag !== "no";
 }
 
 export default registerCUHKSZ;
