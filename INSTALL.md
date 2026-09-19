@@ -54,7 +54,7 @@ bash tools/manage-pi.sh doctor
 新开 pi 会话后可用：
 
 - **扩展命令**：`/ansatz:goal`（长任务目标：`set` / `view` / `pause` / `resume` / `clear`；active 目标在每轮结束后自动续跑，受下方五项预算约束）、`/ansatz:diff`、`/ansatz:status`、slash 模式框架（`/ansatz:review`、`/ansatz:python`）
-- **providers**：`aihubmix/*`（实时模型发现）、`deepseek-full/deepseek-flash` / `deepseek-v4-pro`（V4.1 Flash 支持图片；1M 上下文、384K 最大输出；flash 支持 low/high/max，pro 支持 high/max）、`cuhksz/glm-5-fp8`（固定唯一模型，256K / 262144 tokens 上下文，每次启动写回 `models.json`）
+- **providers**：`aihubmix/*`（实时模型发现）、`deepseek-full/deepseek-flash` / `deepseek-v4-pro`（V4.1 Flash 支持图片；1M 上下文、384K 最大输出；两者均支持 off/low/high/max，Pi 的 off 对应 Responses 的 none）、`cuhksz/glm-5-fp8`（固定唯一模型，256K / 262144 tokens 上下文，每次启动写回 `models.json`）
 - **pi-subagents**：子代理委派引擎（单次调用 / workflowScript 串行与并行编排 / async supervision），作为独立 Pi 包从所选配置目录加载（默认 `~/.pi/agent/npm`）
 - **pi-lens**：实时代码反馈（LSP / linters / formatters / type-checking），作为全局 Pi 包从 `~/.pi/agent/npm` 加载
 - **集群技能**：`agent-cluster`（多代理启动/监督/fan-in）+ `pick-model`（按次委派的模型与思考档位选择）

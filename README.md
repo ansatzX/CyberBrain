@@ -159,7 +159,7 @@ The `aihubmix` catalog is written grouped by vendor, newest version first within
 | Resource | Source | What you get |
 | ---------- | -------- | -------------- |
 | Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals with budgeted auto-continuation, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:python`) |
-| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery), `deepseek-full/deepseek-flash` / `deepseek-v4-pro` (1M context; flash exposes low/high/max, pro exposes high/max), and `cuhksz/glm-5-fp8` (fixed single model, 256K context, `models.json` mirror) |
+| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery), `deepseek-full/deepseek-flash` / `deepseek-v4-pro` (1M context; both expose off/low/high/max; Responses sends `none` for Pi's `off`), and `cuhksz/glm-5-fp8` (fixed single model, 256K context, `models.json` mirror) |
 | Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
 | Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
 | Subagents | `pi/subagents/` | generated `cyberbrain.<role>` agents from `awesome-agent-select` profiles, e.g. `/run cyberbrain.code-reviewer` |

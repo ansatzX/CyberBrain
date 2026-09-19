@@ -18,6 +18,12 @@ type Env = Record<string, string | undefined>;
  */
 export const DEEPSEEK_PROVIDER_ID = "deepseek-full";
 export const DEFAULT_DEEPSEEK_PROTOCOL = "anthropic";
+// Pi calls the disabled level `off`; the Responses wire value is `none`.
+// Both models expose the same levels in either protocol.
+const DEEPSEEK_THINKING_LEVELS = {
+	off: "none", minimal: null, low: "low", medium: null,
+	high: "high", xhigh: null, max: "max",
+};
 export function deepSeekProtocol(env: Env = process.env): "anthropic" | "responses" {
 	const protocol = env.CYBERBRAIN_DEEPSEEK_PROTOCOL?.trim().toLowerCase() || DEFAULT_DEEPSEEK_PROTOCOL;
 	if (protocol !== "anthropic" && protocol !== "responses") {
@@ -42,13 +48,7 @@ export function deepSeekProviderConfig(env: Env = process.env) {
 		contextWindow: 1_000_000,
 		maxTokens: 384_000,
 		cost: { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 },
-		thinkingLevelMap: {
-			minimal: null,
-			low: "low",
-			medium: null,
-			high: "high",
-			max: "max",
-		},
+		thinkingLevelMap: { ...DEEPSEEK_THINKING_LEVELS },
 		...(compat ? { compat } : {}),
 	};
 	return {
@@ -66,14 +66,7 @@ export function deepSeekProviderConfig(env: Env = process.env) {
 				contextWindow: 1_000_000,
 				maxTokens: 384_000,
 				cost: { input: 1.32, output: 3.96, cacheRead: 0.044, cacheWrite: 0 },
-				// Preserve Pro's existing high/max selection.
-				thinkingLevelMap: {
-					minimal: null,
-					low: null,
-					medium: null,
-					high: "high",
-					max: "max",
-				},
+				thinkingLevelMap: { ...DEEPSEEK_THINKING_LEVELS },
 				...(compat ? { compat } : {}),
 			},
 		],

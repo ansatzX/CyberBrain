@@ -34,6 +34,11 @@ place; recovery records remain until restoration finishes.
 
 ## DeepSeek Full provider
 
+Both models expose `off`, `low`, `high`, and `max` in Pi. `off` sends
+`reasoning.effort: "none"` with Responses or `thinking.type: "disabled"` with
+Anthropic; it does not mean omitting the parameter (DeepSeek defaults to thinking
+enabled). See the [official thinking controls](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/).
+
 The custom provider is `deepseek-full`, distinct from built-in `deepseek`. Its
 entrypoint is [extensions/deepseek-full.ts](extensions/deepseek-full.ts), with
 models `deepseek-flash` and `deepseek-v4-pro`. Anthropic is the default protocol;

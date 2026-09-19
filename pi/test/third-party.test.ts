@@ -775,14 +775,25 @@ test("registerDeepSeek registers exactly Flash and Pro", () => {
 		assert.deepEqual(flash.input, ["text", "image"]);
 		assert.deepEqual(flash.cost, { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 });
 		assert.deepEqual((flash as any).thinkingLevelMap, {
-			minimal: null, low: "low", medium: null, high: "high", max: "max",
+			off: "none", minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max",
 		});
 	}
 	assert.deepEqual(models[1].input, ["text"]);
 	assert.deepEqual(models[1].cost, { input: 1.32, output: 3.96, cacheRead: 0.044, cacheWrite: 0 });
 	assert.deepEqual((models[1] as any).thinkingLevelMap, {
-		minimal: null, low: null, medium: null, high: "high", max: "max",
+		off: "none", minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max",
 	});
+});
+
+test("DeepSeek exposes exactly off/low/high/max for both models and protocols", () => {
+	for (const protocol of ["anthropic", "responses"]) {
+		for (const model of deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol }).models) {
+			assert.deepEqual(model.thinkingLevelMap, {
+				off: "none", minimal: null, low: "low", medium: null,
+				high: "high", xhigh: null, max: "max",
+			});
+		}
+	}
 });
 
 test("aihubmix extension skips startup without a nonempty key", async () => {
