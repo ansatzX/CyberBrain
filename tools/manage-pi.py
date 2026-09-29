@@ -438,7 +438,6 @@ def doctor(args: argparse.Namespace) -> int:
             else:
                 issues.append(f"legacy resource still present: {path}")
     for status, provider, variable in (
-        ("DISABLED", "aihubmix", "AIHUBMIX_API_KEY"),
         ("UNAVAILABLE", "deepseek-full", "DEEPSEEK_API_KEY"),
         ("DISABLED", "cuhksz", "CUHKSZ_API_KEY"),
     ):

@@ -7,6 +7,11 @@ description: "Use when installing, reinstalling, auditing, or preparing Brain-ma
 
 Inspect or install Brain-managed copies of Superpowers, Spec Kit, and OpenSpec under `.brain/vendor`.
 
+For source-based capability maps before tailoring or combining upstream skills,
+read the relevant reference: [Superpowers](reference/superpowers.md),
+[Spec Kit](reference/spec-kit.md), or [OpenSpec](reference/openspec.md).
+These describe upstream components; they do not prescribe the user's workflow philosophy.
+
 ## Choose the authorized mode first
 
 - **Audit / inspect / review:** read the existing paths under Inspect and the
@@ -16,17 +21,20 @@ Inspect or install Brain-managed copies of Superpowers, Spec Kit, and OpenSpec u
 - **Install / reinstall / prepare:** confirm that the request authorizes writes
   and resolve the exact project root before using Run or Tame. Inspect existing
   destinations first. The current scripts overwrite files and delete selected
-  directories; they have no ownership manifest, conflict handling, or rollback.
+  directories; they have no ownership manifest or automatic rollback. The vendor
+  installer preserves the old Spec Kit directory as a backup before rebuilding it;
+  other destinations still require backups before replacement.
   Do not run them over existing assets until those exact replacements are
   authorized and recoverable backups are made. Reinstallation is not permission
-  to discard user modifications. Prefer staging and a reviewed merge on an
-  existing project; stop if file ownership is unclear.
+  to discard user modifications. Review changes before applying them to an
+  existing project; stop if file ownership is unclear. Do not merge old Spec Kit
+  vendor contents into a new version.
 
 Use the active host's installed documentation to check any generated Codex
 agent discovery behavior before publishing project-scoped agents. On Pi, this
 skill does not make those Codex agents into Pi subagents.
 
-Superpowers is sourced from the exact installed official Codex marketplace plugin version, not from the older public GitHub release tag. In installation mode only, a missing or mismatched version may require a separately authorized marketplace install or refresh; auditing must report it without changing it.
+In installation mode, Superpowers uses the matching local Codex marketplace cache when available; otherwise the installer downloads the pinned `v<version>` tag from the official `obra/superpowers` GitHub repository into temporary project-local staging. It verifies the Codex plugin manifest version before replacing the vendor copy and cleans up the download staging on exit. Set `SUPERPOWERS_PLUGIN_ROOT` to use an explicit local source; a missing or mismatched explicit source fails without falling back to a download. This does not install or refresh the user's Codex marketplace plugins. Auditing remains read-only.
 
 Resolve `<skill-dir>` to this skill folder. Scripts accept an optional project root as their first argument.
 
@@ -39,6 +47,14 @@ In authorized installation mode, run the bundled installer with the resolved tar
 ```
 
 Spec Kit deliberately uses Codex integration here because this skill vendors raw upstream surfaces for later Brain taming.
+On every Spec Kit reinstall or upgrade, first remove the old snapshot from the
+active `.brain/vendor/spec-kit` path: the installer moves the entire directory to
+`.brain/backups/spec-kit.<unique-id>/spec-kit`, then initializes a new empty
+directory with the pinned CLI version. Never use `init --force` over the old
+snapshot; stale skills, templates, scripts, extensions, workflow registries and
+constitution state must not carry into the new installation. Keep the backup for
+reviewing any local patches separately. If initialization fails, report the
+failure and backup path; do not claim the new snapshot is ready.
 Dependency installers use their default locations; only uv's cache is pinned to project-local `.cache/uv`.
 
 ## Tame

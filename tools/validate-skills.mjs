@@ -6,8 +6,8 @@ import { loadSkillRuntime } from '../pi/test/support/skill-runtime.mjs';
 
 const repo = resolve(import.meta.dirname, '..');
 try {
-  const { root, contract } = await loadSkillRuntime();
-  console.log(`Checking ${contract.package}@${contract.version} at ${root}`);
+  const { root, contract, installedVersion } = await loadSkillRuntime();
+  console.log(`Checking ${contract.package}@${installedVersion} (minimum ${contract.minimumVersion}) at ${root}`);
   for (const args of [
     ['--test', 'pi/test/contracts/skill-contracts.test.ts', 'pi/test/contracts/skill-metadata.test.ts', 'pi/test/skill-round.test.ts', 'pi/test/skill-validation.test.ts'],
     ['tools/generate-agent-adapters.mjs', '--check'],

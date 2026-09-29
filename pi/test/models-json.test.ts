@@ -11,8 +11,7 @@ import {
 	defaultModelsJsonPath,
 	refreshModelsJsonProvider,
 } from "../lib/third-party/models-json.ts";
-import { registerAIHubMix } from "../lib/third-party/aihubmix.ts";
-import { availableModel, detailedModel } from "./fixtures.ts";
+import { availableModel, detailedModel, runAIHubMix } from "./fixtures.ts";
 
 function providerConfig(models: unknown[] = [{ id: "m1", name: "M1" }]) {
 	return {
@@ -254,37 +253,39 @@ test("creates a .bak copy of the previous file on update", async () => {
 test("registerAIHubMix refreshes models.json with discovered models", async () => {
 	await withTempDir(async (dir) => {
 		const modelsJsonPath = join(dir, "models.json");
-		const registrations: string[] = [];
-		await registerAIHubMix(
+		const registrations: unknown[] = [];
+		const reloads = await runAIHubMix(
 			{
-				registerProvider: (name: string) => {
-					registrations.push(name);
+				registerProvider: (name, config) => {
+					registrations.push({ name, config });
 				},
 			},
 			{
-				AIHUBMIX_API_KEY: "secret-key",
 				AIHUBMIX_ORIGIN: "https://example.test",
 				AIHUBMIX_CACHE_PATH: join(dir, "cache.json"),
 				AIHUBMIX_MODELS_JSON_PATH: modelsJsonPath,
 			},
 			{
-				fetchImpl: async (input) =>
-					String(input).endsWith("/v1/models")
+				fetchImpl: async (input, init) => {
+					assert.equal(new Headers(init?.headers).get("Authorization"), "Bearer pi-stored-test-key");
+					return String(input).endsWith("/v1/models")
 						? jsonResponse({ data: [availableModel("one"), availableModel("two")] })
 						: jsonResponse({
 								data: [detailedModel("one"), detailedModel("two")],
-							}),
+							});
+				},
 				readCacheImpl: async () => undefined,
 				writeCacheImpl: async () => undefined,
 				warn: () => undefined,
 			},
 		);
 
-		assert.deepEqual(registrations, ["aihubmix"]);
+		assert.equal(reloads, 1);
+		assert.deepEqual(registrations, [{ name: "aihubmix", config: { baseUrl: "https://example.test/v1" } }]);
 		const written = JSON.parse(await readFile(modelsJsonPath, "utf8"));
 		const provider = written.providers.aihubmix;
 		assert.equal(provider.baseUrl, "https://example.test/v1");
-		assert.equal(provider.apiKey, "$AIHUBMIX_API_KEY");
+		assert.equal("apiKey" in provider, false);
 		assert.equal(provider.api, "openai-completions");
 		assert.deepEqual(
 			provider.models.map((model: { id: string }) => model.id),
@@ -297,14 +298,13 @@ test("registerAIHubMix still registers when models.json refresh fails", async ()
 	await withTempDir(async (dir) => {
 		const warnings: string[] = [];
 		const registrations: string[] = [];
-		await registerAIHubMix(
+		await runAIHubMix(
 			{
 				registerProvider: (name: string) => {
 					registrations.push(name);
 				},
 			},
 			{
-				AIHUBMIX_API_KEY: "secret-key",
 				AIHUBMIX_ORIGIN: "https://example.test",
 				AIHUBMIX_CACHE_PATH: join(dir, "cache.json"),
 				// 指向一个目录 → readFile 失败 → 刷新走告警路径
@@ -331,10 +331,9 @@ test("registerAIHubMix still registers when models.json refresh fails", async ()
 test("registerAIHubMix skips models.json refresh when disabled", async () => {
 	await withTempDir(async (dir) => {
 		const modelsJsonPath = join(dir, "models.json");
-		await registerAIHubMix(
+		await runAIHubMix(
 			{ registerProvider: () => undefined },
 			{
-				AIHUBMIX_API_KEY: "secret-key",
 				AIHUBMIX_ORIGIN: "https://example.test",
 				AIHUBMIX_CACHE_PATH: join(dir, "cache.json"),
 				AIHUBMIX_MODELS_JSON_PATH: modelsJsonPath,

@@ -21,9 +21,9 @@ assert_equal() {
 }
 
 status=0
-assert_equal "Superpowers" "6.1.1" "$(extract_assignment superpowers_version)" || status=1
-assert_equal "Spec Kit" "git+https://github.com/github/spec-kit.git@v0.12.18" "$(extract_assignment spec_kit_package)" || status=1
-assert_equal "OpenSpec" "@fission-ai/openspec@1.5.0" "$(extract_assignment openspec_package)" || status=1
+assert_equal "Superpowers" "6.4.1" "$(extract_assignment superpowers_version)" || status=1
+assert_equal "Spec Kit" "git+https://github.com/github/spec-kit.git@v1.0.8" "$(extract_assignment spec_kit_package)" || status=1
+assert_equal "OpenSpec" "@fission-ai/openspec@1.13.1" "$(extract_assignment openspec_package)" || status=1
 
 if [ "$status" -ne 0 ]; then
   exit "$status"

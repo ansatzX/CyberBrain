@@ -25,9 +25,9 @@ The durable entrypoint is [tools/validate-skills.mjs](../../../tools/validate-sk
 Use the [Pi development guide](../../README.md#development) for ordinary runtime tests.
 
 The checked dependency versions are in [skill-runtime.json](../skill-runtime.json):
-pi-subagents 0.53.0, jiti 2.7.0, yaml 2.8.3, typebox 1.1.38 and acorn 8.18.0.
+pi-subagents >=0.53.0, jiti 2.7.0, yaml 2.8.3, typebox 1.1.38 and acorn 8.18.0.
 Use an existing package installation with those resolved dependencies, or provision
-that exact toolchain in a separate test environment through your package manager.
+a qualifying runtime with those exact dependency versions in a separate test environment through your package manager.
 The default lookup uses `PI_CODING_AGENT_DIR` (otherwise `~/.pi/agent`) followed by
 `npm/node_modules/pi-subagents`. To select a checkout/installation explicitly:
 
@@ -36,7 +36,7 @@ PI_SUBAGENTS_PACKAGE_ROOT=/absolute/path/to/pi-subagents node tools/validate-ski
 ```
 
 The directory must contain the package's source and resolved dependencies.
-Missing packages or mismatched versions fail the gate; nothing is silently skipped.
+Missing packages, runtime versions below the minimum, or mismatched dependency versions fail the gate; nothing is silently skipped. Newer runtimes must still pass the public API contract checks.
 The ordinary `node --test pi/test/*.test.ts` suite remains usable without this
 optional host installation, but is not a substitute for the skill gate. A version
 match alone is not compatibility evidence: the gate also executes the public API.

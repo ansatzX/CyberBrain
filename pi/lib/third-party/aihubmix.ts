@@ -635,7 +635,7 @@ export async function discoverModels(
 	);
 }
 
-type ProviderRegistrar = Pick<ExtensionAPI, "registerProvider">;
+type ProviderRegistrar = Pick<ExtensionAPI, "registerProvider" | "on">;
 
 type Environment = Record<string, string | undefined>;
 
@@ -644,26 +644,37 @@ function parsePositiveNumber(value: string | undefined, fallback: number): numbe
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-export async function registerAIHubMix(
+export function registerAIHubMix(
 	pi: ProviderRegistrar,
 	environment: Environment = process.env,
 	dependencies: DiscoveryDependencies = {},
-): Promise<void> {
-	const apiKey = environment.AIHUBMIX_API_KEY?.trim();
-	if (!apiKey) {
-		throw new Error(
-			[
-				"AIHUBMIX_API_KEY is not set.",
-				"",
-				"Add this to ~/.zshrc:",
-				"export AIHUBMIX_API_KEY='your-key'",
-			].join("\n"),
-		);
-	}
-
+): void {
 	const origin = (
 		environment.AIHUBMIX_ORIGIN || "https://api.inferera.com"
 	).replace(/\/+$/, "");
+	// Override the native provider endpoint without replacing its models or auth.
+	pi.registerProvider("aihubmix", { baseUrl: `${origin}/v1` });
+	// The host owns authentication. Context is only available after extension loading.
+	pi.on("session_start", async (_event, ctx) => {
+		if (!modelsJsonRefreshEnabled(environment)) return;
+		try {
+			const apiKey = (await ctx.modelRegistry.getApiKeyForProvider("aihubmix"))?.trim();
+			if (!apiKey) return;
+			await refreshAIHubMixModelsJson(origin, apiKey, environment, dependencies);
+			await ctx.modelRegistry.refresh({ allowNetwork: false });
+		} catch (error) {
+			const warn = dependencies.warn ?? ((message: string) => console.warn(message));
+			warn(`AIHubMix models.json refresh failed (endpoint override remains active): ${asError(error).message}`);
+		}
+	});
+}
+
+async function refreshAIHubMixModelsJson(
+	origin: string,
+	apiKey: string,
+	environment: Environment,
+	dependencies: DiscoveryDependencies,
+): Promise<void> {
 	const models = await discoverModels(
 		{
 			origin,
@@ -698,34 +709,20 @@ export async function registerAIHubMix(
 	const providerConfig = {
 		name: "AIHubMix",
 		baseUrl: `${origin}/v1`,
-		apiKey: "$AIHUBMIX_API_KEY",
 		api: "openai-completions",
 		models,
 	};
 
-	// 把 provider 同步刷新进 models.json：registerProvider 只对当前进程有效，
-	// 而 Raft daemon 等消费方只读 models.json。刷新失败只告警，不影响注册。
-	if (modelsJsonRefreshEnabled(environment)) {
-		const warn = dependencies.warn ?? ((message: string) => console.warn(message));
-		try {
-			await refreshModelsJsonProvider(
-				{
-					path:
-						environment.AIHUBMIX_MODELS_JSON_PATH?.trim() ||
-						defaultModelsJsonPath(environment),
-					providerId: "aihubmix",
-					config: providerConfig,
-				},
-				dependencies.modelsJson,
-			);
-		} catch (error) {
-			warn(
-				`AIHubMix models.json refresh failed (provider still registered in-process): ${asError(error).message}`,
-			);
-		}
-	}
-
-	pi.registerProvider("aihubmix", providerConfig);
+	// Publish the discovered catalog for models.json readers, including Raft.
+	// Pi merges this catalog with its native provider on registry refresh.
+	await refreshModelsJsonProvider(
+		{
+			path: environment.AIHUBMIX_MODELS_JSON_PATH?.trim() || defaultModelsJsonPath(environment),
+			providerId: "aihubmix",
+			config: providerConfig,
+		},
+		dependencies.modelsJson,
+	);
 }
 
 function modelsJsonRefreshEnabled(environment: Environment): boolean {

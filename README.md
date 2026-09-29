@@ -29,8 +29,7 @@ CyberBrain is a personal agent configuration repository with first-class host ad
   recheck after upgrades or environment changes. A newer version still needs
   compatibility verification.
 - Development checks use Node’s built-in TypeScript support, Python 3 and Bash.
-  The separate [skill gate](pi/test/evals/README.md) requires the exact tested
-  pi-subagents toolchain recorded in `pi/test/skill-runtime.json`.
+  The separate [skill gate](pi/test/evals/README.md) requires the minimum pi-subagents version and exact dependency versions recorded in `pi/test/skill-runtime.json`.
 
 ## Codex Installation
 
@@ -133,7 +132,7 @@ Anthropic mode injects `web_search_20250305` for both models with `max_uses: 3`.
 
 Protocol selection is process-scoped. A shell override does not change an already-running Pi or Raft process. Use `deepseek-full/<model>` in model selection; built-in `deepseek/<model>` is a separate provider. Package updates preserve user preferences, credentials and session history; changes to those preferences need authorization.
 
-Providers register in-process via `pi.registerProvider`, which only affects the current pi process — consumers that read `models.json` directly (e.g. the Raft daemon's model detection) never see them. To fix that, every pi startup also refreshes the `aihubmix`, `deepseek-full` and `cuhksz` provider sections of `models.json` (`pi/lib/third-party/models-json.ts`):
+Providers register in-process via `pi.registerProvider`, which only affects the current pi process — consumers that read `models.json` directly (e.g. the Raft daemon's model detection) never see them. To fix that, extension/session initialization also refreshes the `aihubmix`, `deepseek-full` and `cuhksz` provider sections of `models.json` (`pi/lib/third-party/models-json.ts`):
 
 - Refuses to touch an unparseable `models.json`; rewrites its own provider section and explicitly owned legacy IDs during migration, preserving unrelated providers and all other keys.
 - Skips the write entirely when nothing changed; otherwise writes atomically (temp file + rename), round-trip-validates the JSON before and after writing, and snapshots the previous file to `models.json.bak` for rollback.
@@ -148,7 +147,11 @@ Providers register in-process via `pi.registerProvider`, which only affects the 
 
 All default to `$PI_CODING_AGENT_DIR/models.json`, falling back to `~/.pi/agent/models.json`.
 
-Without a nonempty `AIHUBMIX_API_KEY`, `aihubmix` skips startup silently: no discovery, registration, or models.json refresh. `cuhksz` logs a disabled warning when its key is missing.
+The AIHubMix extension only overrides the `aihubmix` endpoint (default `https://api.inferera.com/v1`, configurable through `AIHUBMIX_ORIGIN`) and refreshes its `models.json` catalog for readers such as Raft. It does not register a replacement model list or authentication implementation in-process. Pi merges the file catalog with existing models; matching IDs use the file metadata, while unmatched native models remain if the installed Pi ships them. The locally checked Pi 0.85.1 does not ship an AIHubMix catalog, so it relies on `models.json` for these models. Open `/model` to reload the file in an existing Pi session; Raft must refresh its own catalog separately.
+
+AIHubMix authentication belongs to Pi: use `/login aihubmix` to save an API key, then `/reload`. On `session_start` (including reload), the extension obtains the key through `ctx.modelRegistry.getApiKeyForProvider("aihubmix")`, refreshes the file catalog, and reloads Pi's registry locally. It does not read `AIHUBMIX_API_KEY` itself, write `auth.json`, or include an `apiKey` field in its generated provider section. Existing generated environment-key references are removed on the next successful catalog refresh. Authentication configuration supported by the host remains the host's responsibility; setting the legacy environment variable alone is no longer this extension's login mechanism.
+
+The endpoint override applies before session startup, even without credentials. Without a host-resolved key, discovery and file refresh are skipped silently; `AIHUBMIX_MODELS_JSON_REFRESH=off` also skips discovery while retaining the endpoint override. Discovery uses a six-hour cache by default. `pi --list-models` reads the existing catalog without running this session-start refresh. Refresh failures warn and preserve the previous catalog. `cuhksz` logs a disabled warning when its key is missing.
 
 `cuhksz` registers only `glm-5-fp8`, with a fixed 256K (262144 tokens) context window. Cached or live probe metadata cannot override this setting; output is capped at the context window. `CUHKSZ_MODELS` no longer changes the model selection.
 
@@ -159,7 +162,7 @@ The `aihubmix` catalog is written grouped by vendor, newest version first within
 | Resource | Source | What you get |
 | ---------- | -------- | -------------- |
 | Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals with budgeted auto-continuation, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:python`) |
-| Providers | `pi/lib/third-party/` | `aihubmix/*` (live model discovery), `deepseek-full/deepseek-flash` / `deepseek-v4-pro` (1M context; both expose off/low/high/max; Responses sends `none` for Pi's `off`), and `cuhksz/glm-5-fp8` (fixed single model, 256K context, `models.json` mirror) |
+| Providers | `pi/lib/third-party/` | `aihubmix/*` (native endpoint override + catalog refresh), `deepseek-full/deepseek-flash` / `deepseek-v4-pro` (1M context; both expose off/low/high/max; Responses sends `none` for Pi's `off`), and `cuhksz/glm-5-fp8` (fixed single model, 256K context, `models.json` mirror) |
 | Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
 | Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
 | Subagents | `pi/subagents/` | generated `cyberbrain.<role>` agents from `awesome-agent-select` profiles, e.g. `/run cyberbrain.code-reviewer` |

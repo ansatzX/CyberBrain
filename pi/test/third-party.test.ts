@@ -16,13 +16,12 @@ import {
 	parsePrice,
 	parseTokenCount,
 	readCache,
-	registerAIHubMix,
 	sortModelsByVendor,
 	writeCache,
 	type DiscoveryCache,
 	type ProviderModel,
 } from "../lib/third-party/aihubmix.ts";
-import { availableModel, detailedModel } from "./fixtures.ts";
+import { availableModel, detailedModel, runAIHubMix } from "./fixtures.ts";
 import { deepSeekProtocol, deepSeekProviderConfig, installDeepSeekWebSearch, refreshDeepSeekModelsJson, registerDeepSeek } from "../lib/third-party/deepseek-full.ts";
 import deepSeekExtension from "../extensions/deepseek-full.ts";
 import aihubmixExtension from "../extensions/aihubmix.ts";
@@ -647,112 +646,35 @@ test("cache write failure warns without discarding live discovery", async () => 
 	assert.match(warnings.join("\n"), /disk full/);
 });
 
-test("registerAIHubMix rejects a missing API key before network access", async () => {
-	let fetched = false;
-	await assert.rejects(
-		registerAIHubMix(
-			{ registerProvider: () => assert.fail("must not register") },
-			{},
-			{
-				fetchImpl: async () => {
-					fetched = true;
-					throw new Error("must not fetch");
-				},
-			},
-		),
-		/AIHUBMIX_API_KEY is not set/,
-	);
-	assert.equal(fetched, false);
+test("AIHubMix ignores plugin API-key env and skips catalog without Pi auth or when disabled", async () => {
+	for (const environment of [
+		{},
+		{ AIHUBMIX_API_KEY: "ignored-environment-key" },
+		{ AIHUBMIX_MODELS_JSON_REFRESH: "off" },
+	]) {
+		const registrations: unknown[] = [];
+		const reloads = await runAIHubMix({ registerProvider: (name, config) => registrations.push({ name, config }) }, environment, {
+			fetchImpl: async () => assert.fail("must not fetch"),
+			readCacheImpl: async () => assert.fail("must not read cache"),
+		}, environment.AIHUBMIX_MODELS_JSON_REFRESH ? "stored-key" : "");
+		assert.equal(reloads, 0);
+		assert.deepEqual(registrations, [{ name: "aihubmix", config: { baseUrl: "https://api.inferera.com/v1" } }]);
+	}
 });
 
-test("registerAIHubMix discovers and registers the configured provider", async () => {
-	const registrations: Array<{ name: string; config: Record<string, unknown> }> = [];
-	await registerAIHubMix(
-		{
-			registerProvider: (name: string, config: Record<string, unknown>) => {
-				registrations.push({ name, config });
-			},
-		},
-		{
-			AIHUBMIX_API_KEY: "secret-key",
-			AIHUBMIX_ORIGIN: "https://example.test/",
-			AIHUBMIX_DISCOVERY_TIMEOUT_MS: "1234",
-			AIHUBMIX_PRICE_MULTIPLIER: "2",
-			AIHUBMIX_CACHE_PATH: "/custom/cache.json",
-			// registerAIHubMix also refreshes models.json. Without this the test
-			// writes its fixtures into the developer's real ~/.pi/agent/models.json.
-			AIHUBMIX_MODELS_JSON_REFRESH: "off",
-		},
-		{
-			fetchImpl: async (input) =>
-				String(input).endsWith("/v1/models")
-					? jsonResponse({ data: [availableModel("one")] })
-					: jsonResponse({
-							data: [
-								detailedModel("one", {
-									pricing: { input: 1, output: 2 },
-								}),
-							],
-						}),
-			readCacheImpl: async () => undefined,
-			writeCacheImpl: async (path) => {
-				assert.equal(path, "/custom/cache.json");
-			},
-			warn: () => undefined,
-		},
-	);
-
-	assert.equal(registrations.length, 1);
-	assert.equal(registrations[0].name, "aihubmix");
-	assert.equal(registrations[0].config.name, "AIHubMix");
-	assert.equal(registrations[0].config.baseUrl, "https://example.test/v1");
-	assert.equal(registrations[0].config.apiKey, "$AIHUBMIX_API_KEY");
-	assert.equal(registrations[0].config.api, "openai-completions");
-	const models = registrations[0].config.models as Array<{
-		contextWindow: number;
-		cost: { input: number; output: number };
-	}>;
-	assert.equal(models[0].contextWindow, 128_000);
-	assert.deepEqual(models[0].cost, {
-		input: 2,
-		output: 4,
-		cacheRead: 0,
-		cacheWrite: 0,
+test("AIHubMix discovery failure leaves the native endpoint override active", async () => {
+	const registrations: unknown[] = [];
+	const warnings: string[] = [];
+	await runAIHubMix({ registerProvider: (name, config) => registrations.push({ name, config }) }, {
+		AIHUBMIX_ORIGIN: "https://example.test/",
+	}, {
+		fetchImpl: async () => { throw new Error("offline"); },
+		readCacheImpl: async () => undefined,
+		warn: (message) => warnings.push(message),
 	});
+	assert.deepEqual(registrations, [{ name: "aihubmix", config: { baseUrl: "https://example.test/v1" } }]);
+	assert.match(warnings.join("\n"), /refresh failed.*endpoint override remains active/);
 });
-
-test("registerAIHubMix normalizes invalid environment options", async () => {
-	const registrations: Array<Record<string, unknown>> = [];
-	await registerAIHubMix(
-		{
-			registerProvider: (_name: string, config: Record<string, unknown>) => {
-				registrations.push(config);
-			},
-		},
-		{
-			AIHUBMIX_API_KEY: "secret-key",
-			AIHUBMIX_DISCOVERY_TIMEOUT_MS: "invalid",
-			AIHUBMIX_PRICE_MULTIPLIER: "-2",
-			AIHUBMIX_CACHE_PATH: "/custom/cache.json",
-			AIHUBMIX_MODELS_JSON_REFRESH: "off",
-		},
-		{
-			fetchImpl: async (input, init) => {
-				assert.ok(init?.signal);
-				return String(input).endsWith("/v1/models")
-					? jsonResponse({ data: [availableModel("one")] })
-					: jsonResponse({ data: [detailedModel("one")] });
-			},
-			readCacheImpl: async () => undefined,
-			writeCacheImpl: async () => undefined,
-			warn: () => undefined,
-		},
-	);
-
-	const model = (registrations[0].models as Array<{ contextWindow: number }>)[0];
-	assert.equal(model.contextWindow, 128_000);
-});
-
 
 test("registerDeepSeek registers exactly Flash and Pro", () => {
 	const registrations: Array<{ name: string; config: Record<string, unknown> }> = [];
@@ -796,7 +718,7 @@ test("DeepSeek exposes exactly off/low/high/max for both models and protocols", 
 	}
 });
 
-test("aihubmix extension skips startup without a nonempty key", async () => {
+test("aihubmix extension keeps the native endpoint override without a nonempty key", async () => {
 	const warnings: string[] = [];
 	const originalWarn = console.warn;
 	const originalKey = process.env.AIHUBMIX_API_KEY;
@@ -806,11 +728,13 @@ test("aihubmix extension skips startup without a nonempty key", async () => {
 	delete process.env.AIHUBMIX_API_KEY;
 	try {
 		await aihubmixExtension({
-			registerProvider: () => assert.fail("must not register"),
+			registerProvider: (name, config) => assert.deepEqual({ name, config }, { name: "aihubmix", config: { baseUrl: "https://api.inferera.com/v1" } }),
+			on: (event) => assert.equal(event, "session_start"),
 		} as unknown as ExtensionAPI);
 		process.env.AIHUBMIX_API_KEY = "   ";
 		await aihubmixExtension({
-			registerProvider: () => assert.fail("must not register"),
+			registerProvider: (name, config) => assert.deepEqual({ name, config }, { name: "aihubmix", config: { baseUrl: "https://api.inferera.com/v1" } }),
+			on: (event) => assert.equal(event, "session_start"),
 		} as unknown as ExtensionAPI);
 	} finally {
 		console.warn = originalWarn;
@@ -818,7 +742,7 @@ test("aihubmix extension skips startup without a nonempty key", async () => {
 		else process.env.AIHUBMIX_API_KEY = originalKey;
 	}
 
-	// 缺 key 只降级为「provider 不可用」：不抛错（pi 不再报 Failed to load extension）
+	// Missing discovery credentials do not disable the native provider.
 	assert.deepEqual(warnings, []);
 });
 
@@ -834,7 +758,7 @@ test("deepseek extension registers without any environment keys", async () => {
 	const previous = process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH;
 	process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH = "off";
 	try {
-		// 隔离性回归：aihubmix 因缺 AIHUBMIX_API_KEY 直接失效时，
+		// 隔离性回归：aihubmix 缺少目录发现所需的 AIHUBMIX_API_KEY 时，
 		// deepseek 扩展必须照常注册（pi 按扩展文件隔离）。
 		await deepSeekExtension(pi as never);
 	} finally {

@@ -7,8 +7,7 @@ import { agentDir } from "../lib/agent-paths.ts";
 import { goalFilePath } from "../lib/goal-core.ts";
 import { defaultModelsJsonPath } from "../lib/third-party/models-json.ts";
 import slashFramework from "../extensions/slash-framework.ts";
-import { registerAIHubMix } from "../lib/third-party/aihubmix.ts";
-import { availableModel, detailedModel } from "./fixtures.ts";
+import { availableModel, detailedModel, runAIHubMix } from "./fixtures.ts";
 
 test("Pi directory override applies to goal, slash, models and provider cache", async () => {
 	const root = mkdtempSync(join(tmpdir(), "agent-paths-"));
@@ -27,8 +26,8 @@ test("Pi directory override applies to goal, slash, models and provider cache", 
 		slashFramework({ registerCommand(name: string) { commands.push(name); }, on() {} } as any);
 		assert.ok(commands.includes("ansatz:custom"));
 		let cachePath = "";
-		await registerAIHubMix({ registerProvider() {} }, {
-			PI_CODING_AGENT_DIR: root, AIHUBMIX_API_KEY: "test", AIHUBMIX_MODELS_JSON_REFRESH: "off",
+		await runAIHubMix({ registerProvider() {} }, {
+			PI_CODING_AGENT_DIR: root,
 		}, {
 			readCacheImpl: async (path) => { cachePath = path; return undefined; },
 			writeCacheImpl: async () => {},
