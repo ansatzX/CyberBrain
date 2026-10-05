@@ -91,6 +91,11 @@ export type DetailedModel = {
 	input_modalities?: string | string[];
 	/** Gateway route tokens: chat_completions / responses / claude_api / gemini_api. */
 	endpoints?: string | string[];
+	/**
+	 * Standalone reasoning capability flag. Roughly a sixth of the catalog sets
+	 * this boolean without any `thinking`/`reasoning` token in `features`.
+	 */
+	reasoning?: boolean | string;
 	context_length?: string | number;
 	max_output?: string | number;
 	pricing?: {
@@ -257,7 +262,10 @@ export function normalizeModel(
 		api: route.api,
 		baseUrl: route.baseUrl,
 		reasoning:
-			features.includes("thinking") || features.includes("reasoning"),
+			features.includes("thinking") ||
+			features.includes("reasoning") ||
+			metadata?.reasoning === true ||
+			String(metadata?.reasoning).toLowerCase() === "true",
 		input,
 		// Pi defines contextWindow as the provider's total input+output window and
 		// independently clamps maxTokens to the request's remaining capacity.

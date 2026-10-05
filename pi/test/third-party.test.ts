@@ -34,6 +34,7 @@ import aihubmixExtension from "../extensions/aihubmix.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const normalizeOptions = {
+	origin: "https://example.test",
 	priceMultiplier: 1,
 	defaultContextWindow: 128_000,
 	defaultMaxTokens: 16_384,
@@ -103,6 +104,32 @@ test("normalizeModel recognizes Chinese-separated reasoning and image metadata",
 
 	assert.equal(model.reasoning, true);
 	assert.deepEqual(model.input, ["text", "image"]);
+});
+
+test("normalizeModel honors the catalog's standalone reasoning flag", () => {
+	// gpt-6-luna: features is empty but the catalog sets reasoning: true.
+	const model = normalizeModel(
+		availableModel("gpt-6-luna"),
+		detailedModel("gpt-6-luna", { features: "", reasoning: true }),
+		normalizeOptions,
+	);
+	assert.equal(model.reasoning, true);
+	assert.equal(model.api, "openai-completions");
+	assert.equal(model.baseUrl, "https://example.test/v1");
+
+	// A string "true" is tolerated; an explicit false does not flip the flag.
+	const stringForm = normalizeModel(
+		availableModel("string-flag"),
+		detailedModel("string-flag", { features: "", reasoning: "true" }),
+		normalizeOptions,
+	);
+	assert.equal(stringForm.reasoning, true);
+	const plain = normalizeModel(
+		availableModel("plain"),
+		detailedModel("plain", { features: "", reasoning: false }),
+		normalizeOptions,
+	);
+	assert.equal(plain.reasoning, false);
 });
 
 test("normalizeModel clamps max output below advertised context", () => {
