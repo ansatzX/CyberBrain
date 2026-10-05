@@ -499,6 +499,30 @@ test("resolveProtocol picks the family protocol the gateway opened", () => {
 	assert.deepEqual(resolveProtocol(undefined, origin), chat);
 	assert.deepEqual(resolveProtocol(undefined, origin, "claude-opus-5"), chat);
 
+	// Empty endpoints + reasoning: chat ignores reasoning effort on this
+	// gateway (verified live), so reasoning models escape to their native
+	// route (claude/gemini family, all verified live) or Responses otherwise.
+	assert.deepEqual(
+		resolveProtocol(undefined, origin, "claude-opus-4-5", true),
+		anthropic,
+	);
+	assert.deepEqual(
+		resolveProtocol("", origin, "gemini-2.5-flash", true),
+		gemini,
+	);
+	assert.deepEqual(
+		resolveProtocol(undefined, origin, "gpt-6-luna", true),
+		responses,
+	);
+	assert.deepEqual(
+		resolveProtocol(undefined, origin, "qwen3-max", true),
+		responses,
+	);
+	assert.deepEqual(
+		resolveProtocol(undefined, origin, "gpt-6.1-sol", false),
+		chat,
+	);
+
 	// Family-aware, capability-gated: the name picks a family only when the
 	// gateway actually opened that protocol for the model.
 	assert.deepEqual(
@@ -586,6 +610,13 @@ test("fetchOriginModels maps the origin catalog and skips non-LLM entries", asyn
 						detailedModel("glm-5.1", {
 							endpoints: "chat_completions,claude_api",
 						}),
+						// Undeclared routes + reasoning: escapes chat (which ignores
+						// effort) to Responses.
+						detailedModel("gpt-6-luna", {
+							endpoints: "",
+							features: "",
+							reasoning: true,
+						}),
 						detailedModel("embedding", {
 							endpoints: "chat_completions",
 							types: "embedding",
@@ -604,6 +635,7 @@ test("fetchOriginModels maps the origin catalog and skips non-LLM entries", asyn
 			["responses", "openai-responses", "https://example.test/v1"],
 			["gpt-5.6-sol", "openai-responses", "https://example.test/v1"],
 			["glm-5.1", "openai-completions", "https://example.test/v1"],
+			["gpt-6-luna", "openai-responses", "https://example.test/v1"],
 		],
 	);
 });

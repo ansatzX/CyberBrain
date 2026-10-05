@@ -114,7 +114,8 @@ test("normalizeModel honors the catalog's standalone reasoning flag", () => {
 		normalizeOptions,
 	);
 	assert.equal(model.reasoning, true);
-	assert.equal(model.api, "openai-completions");
+	// Undeclared routes + reasoning escapes chat (which ignores effort).
+	assert.equal(model.api, "openai-responses");
 	assert.equal(model.baseUrl, "https://example.test/v1");
 
 	// A string "true" is tolerated; an explicit false does not flip the flag.
@@ -954,11 +955,19 @@ test("deepseek models.json refresh honors its kill switch", async () => {
 
 test("deepseek models.json refresh failure never blocks registration", async () => {
 	const warnings: string[] = [];
-	// 指向一个不可写的路径：刷新失败只能告警，不得抛出。
-	await refreshDeepSeekModelsJson(
-		{ CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: "/proc/nonexistent/models.json" },
-		{ warn: (message: string) => warnings.push(message) },
-	);
+	// 不可写路径的造法：父组件是普通文件，recursive mkdir 立即 ENOTDIR。
+	// 不要用 /proc：Node 22 下 recursive mkdir 在 /proc 里会无限重试挂死。
+	const dir = await mkdtemp(join(tmpdir(), "deepseek-refresh-fail-"));
+	try {
+		const fileParent = join(dir, "a-file");
+		await writeFile(fileParent, "not a directory");
+		await refreshDeepSeekModelsJson(
+			{ CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: join(fileParent, "models.json") },
+			{ warn: (message: string) => warnings.push(message) },
+		);
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
 	assert.equal(warnings.length, 1, "失败必须被捕获并告警");
 	assert.match(warnings[0], /still registered in-process/);
 });

@@ -56,7 +56,7 @@ bash tools/manage-pi.sh doctor
 新开 pi 会话后可用：
 
 - **扩展命令**：`/ansatz:goal`（长任务目标：`set` / `view` / `pause` / `resume` / `clear`；active 目标在每轮结束后自动续跑，受下方五项预算约束）、`/ansatz:diff`、`/ansatz:status`、slash 模式框架（`/ansatz:review`、`/ansatz:python`）
-- **providers**：`aihubmix/*`（把官方插件的 Default base URL `https://aihubmix.com` 在运行时切到 Preferred base URL `https://api.inferera.com`，含目录端点；本仓库不改官方包。协议按目录 `endpoints` 字段逐模型决定：claude-*开放 claude_api 走 anthropic、gemini-* 开放 gemini_api 走 gemini、开放 responses 的优先 responses、其余 chat）、`deepseek-full/deepseek-flash` / `deepseek-v4-pro`（V4.1 Flash 支持图片；1M 上下文、384K 最大输出；两者均支持 off/low/high/max，Pi 的 off 对应 Responses 的 none）、`cuhksz/glm-5-fp8`（固定唯一模型，256K / 262144 tokens 上下文，每次启动写回 `models.json`）
+- **providers**：`aihubmix/*`（把官方插件的 Default base URL `https://aihubmix.com` 在运行时切到 Preferred base URL `https://api.inferera.com`，含目录端点；本仓库不改官方包。协议按目录 `endpoints` 字段逐模型决定：claude-*开放 claude_api 走 anthropic、gemini-* 开放 gemini_api 走 gemini、开放 responses 的优先 responses、其余 chat；未声明路由的推理模型改走家族原生协议（claude→anthropic、gemini→gemini、其余→responses），因为本网关的 chat 路由会忽略思考档位（已实测））、`deepseek-full/deepseek-flash` / `deepseek-v4-pro`（V4.1 Flash 支持图片；1M 上下文、384K 最大输出；两者均支持 off/low/high/max，Pi 的 off 对应 Responses 的 none）、`cuhksz/glm-5-fp8`（固定唯一模型，256K / 262144 tokens 上下文，每次启动写回 `models.json`）
 - **pi-subagents**：子代理委派引擎（单次调用 / workflowScript 串行与并行编排 / async supervision），作为独立 Pi 包从所选配置目录加载（默认 `~/.pi/agent/npm`）
 - **pi-lens**：实时代码反馈（LSP / linters / formatters / type-checking），作为全局 Pi 包从 `~/.pi/agent/npm` 加载
 - **集群技能**：`agent-cluster`（多代理启动/监督/fan-in）+ `pick-model`（按次委派的模型与思考档位选择）

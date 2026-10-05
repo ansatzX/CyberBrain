@@ -140,15 +140,22 @@ function protocolFamilyOf(id: string | undefined): "claude" | "gemini" | undefin
  * 2. A gemini-family id with `gemini_api` open → Gemini.
  * 3. `responses` open → OpenAI Responses (the official package lacks this
  *    branch and would flatten these models to Chat Completions).
- * 4. `chat_completions` open or endpoints empty → OpenAI Chat Completions.
- * 5. Remaining native routes (non-family ids, no chat) → their protocol.
- * Unknown route tokens fall back to Chat Completions rather than dropping the
- * model, matching this extension's tolerant normalization.
+ * 4. Declared Chat Completions or unknown tokens → Chat Completions.
+ *
+ * Empty `endpoints` is the gateway's legacy representation for the default
+ * Chat Completions route — but that route silently ignores reasoning effort
+ * (verified live: `reasoning_effort` none vs high produce the same reasoning
+ * token count). So for reasoning-capable models with no declared route the
+ * family native route is used instead (all three verified live on the
+ * gateway): claude-family → Anthropic Messages, gemini-family → Gemini, and
+ * everything else → OpenAI Responses. Non-reasoning models keep the legacy
+ * Chat Completions default.
  */
 export function resolveProtocol(
 	endpoints: string | string[] | undefined,
 	origin: string,
 	id?: string,
+	reasoning?: boolean,
 ): ProtocolRoute {
 	const routes = parseList(endpoints);
 	const family = protocolFamilyOf(id ?? "");
@@ -161,7 +168,22 @@ export function resolveProtocol(
 	if (routes.includes("responses")) {
 		return { api: "openai-responses", baseUrl: `${origin}/v1` };
 	}
-	if (routes.length === 0 || routes.includes("chat_completions")) {
+	if (routes.length === 0) {
+		if (reasoning) {
+			if (family === "claude") {
+				return { api: "anthropic-messages", baseUrl: origin };
+			}
+			if (family === "gemini") {
+				return {
+					api: "google-generative-ai",
+					baseUrl: `${origin}/gemini/v1beta`,
+				};
+			}
+			return { api: "openai-responses", baseUrl: `${origin}/v1` };
+		}
+		return { api: "openai-completions", baseUrl: `${origin}/v1` };
+	}
+	if (routes.includes("chat_completions")) {
 		return { api: "openai-completions", baseUrl: `${origin}/v1` };
 	}
 	if (routes.includes("claude_api")) {
@@ -254,18 +276,19 @@ export function normalizeModel(
 	if (modalities.includes("image")) input.push("image");
 
 	const displayName = metadata?.model_name?.trim();
-	const route = resolveProtocol(metadata?.endpoints, options.origin, id);
+	const reasoning =
+		features.includes("thinking") ||
+		features.includes("reasoning") ||
+		metadata?.reasoning === true ||
+		String(metadata?.reasoning).toLowerCase() === "true";
+	const route = resolveProtocol(metadata?.endpoints, options.origin, id, reasoning);
 
 	return {
 		id,
 		name: displayName || id,
 		api: route.api,
 		baseUrl: route.baseUrl,
-		reasoning:
-			features.includes("thinking") ||
-			features.includes("reasoning") ||
-			metadata?.reasoning === true ||
-			String(metadata?.reasoning).toLowerCase() === "true",
+		reasoning,
 		input,
 		// Pi defines contextWindow as the provider's total input+output window and
 		// independently clamps maxTokens to the request's remaining capacity.
