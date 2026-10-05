@@ -3,6 +3,10 @@
 // 动机：pi 的 registerProvider 只在当前进程生效；Raft daemon 等只读
 // models.json 的消费方看不到扩展注册的 provider。每次 pi 启动（扩展加载）
 // 时把发现的模型写回 models.json，声明式与编程式两条路径就都有了。
+// provider 段可以不写 baseUrl/api：此时每个模型条目必须自带 api 和
+// baseUrl，用于多协议路由（chat/responses/anthropic/gemini 各占一条路径）。
+// 早期只维护 provider 段 baseUrl 的 ensure 路径已删除：端点重定向改由
+// native provider 的 baseUrl rebase 完成，models.json 只承载目录镜像。
 //
 // 安全保证：
 // 1. 现有文件不是合法 JSON → 拒绝修改（不碰用户文件）。
@@ -82,26 +86,44 @@ function parseModelsJson(text: string, path: string): Record<string, unknown> {
 	return parsed;
 }
 
+function assertProviderId(providerId: string): void {
+	if (!/^[a-z0-9][a-z0-9._-]*$/i.test(providerId)) {
+		throw new Error(`非法 provider id: ${JSON.stringify(providerId)}`);
+	}
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 function assertValidProviderConfig(
 	providerId: string,
 	config: ProviderConfig,
 ): number {
-	if (!/^[a-z0-9][a-z0-9._-]*$/i.test(providerId)) {
-		throw new Error(`非法 provider id: ${JSON.stringify(providerId)}`);
-	}
-	if (typeof config.baseUrl !== "string" || !config.baseUrl.trim()) {
+	assertProviderId(providerId);
+	if (config.baseUrl !== undefined && !nonEmptyString(config.baseUrl)) {
 		throw new Error(`provider ${providerId}: baseUrl 缺失或为空，拒绝写入`);
 	}
-	if (typeof config.api !== "string" || !config.api.trim()) {
+	if (config.api !== undefined && !nonEmptyString(config.api)) {
 		throw new Error(`provider ${providerId}: api 缺失或为空，拒绝写入`);
 	}
+	const providerBaseUrl = nonEmptyString(config.baseUrl);
+	const providerApi = nonEmptyString(config.api);
 	const models = config.models;
 	if (!Array.isArray(models) || models.length === 0) {
 		throw new Error(`provider ${providerId}: models 为空，拒绝写入`);
 	}
 	for (const model of models) {
-		if (!isPlainObject(model) || typeof model.id !== "string" || !model.id.trim()) {
+		if (!isPlainObject(model) || !nonEmptyString(model.id)) {
 			throw new Error(`provider ${providerId}: 存在没有 id 的模型条目，拒绝写入`);
+		}
+		// Pi resolves each model's api/baseUrl from the model entry first and the
+		// provider config second; per-model routing needs both to be resolvable.
+		if (!(nonEmptyString(model.api) ?? providerApi)) {
+			throw new Error(`provider ${providerId}: 模型 ${String(model.id)} 缺少 api 且 provider 未提供，拒绝写入`);
+		}
+		if (!(nonEmptyString(model.baseUrl) ?? providerBaseUrl)) {
+			throw new Error(`provider ${providerId}: 模型 ${String(model.id)} 缺少 baseUrl 且 provider 未提供，拒绝写入`);
 		}
 	}
 	return models.length;
@@ -115,13 +137,16 @@ export type RefreshOptions = {
 	replaceProviderIds?: string[];
 };
 
-export async function refreshModelsJsonProvider(
-	options: RefreshOptions,
-	dependencies: ModelsJsonDependencies = {},
-): Promise<RefreshResult> {
-	assertValidProviderConfig(options.providerId, options.config);
-	await mkdir(dirname(options.path), { recursive: true });
-	const path = join(await realpath(dirname(options.path)), basename(options.path));
+/** 与 pi 的 getProvider() 一样按真实路径访问，避免符号链接指向两份文件。 */
+async function resolveModelsJsonPath(input: string): Promise<string> {
+	await mkdir(dirname(input), { recursive: true });
+	return join(await realpath(dirname(input)), basename(input));
+}
+
+async function withModelsJsonLock<T>(
+	path: string,
+	task: () => Promise<T>,
+): Promise<T> {
 	const lockPath = `${path}.lock`;
 	const deadline = Date.now() + 5_000;
 	for (;;) {
@@ -137,65 +162,54 @@ export async function refreshModelsJsonProvider(
 		}
 	}
 	try {
-		return await refreshLocked({ ...options, path }, dependencies);
+		return await task();
 	} finally {
 		await rm(lockPath, { recursive: true, force: true });
 	}
 }
 
-async function refreshLocked(
-	options: RefreshOptions,
-	dependencies: ModelsJsonDependencies,
-): Promise<RefreshResult> {
-	const readFileImpl = dependencies.readFileImpl ?? readFile;
+async function readModelsDocument(
+	path: string,
+	readFileImpl: typeof readFile,
+): Promise<{ document: Record<string, unknown>; existed: boolean }> {
+	try {
+		return {
+			document: parseModelsJson(await readFileImpl(path, "utf8"), path),
+			existed: true,
+		};
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
+			return { document: {}, existed: false };
+		}
+		throw error;
+	}
+}
+
+/**
+ * 原子写入：序列化往返校验 → 临时文件 → 备份 → rename → 重读校验。
+ * `verify` 在写入前对序列化结果、写入后对落盘内容各执行一次，
+ * 失败时抛出错误；写入后失败会尽量用 .bak 恢复。
+ */
+async function writeModelsDocument(options: {
+	path: string;
+	document: Record<string, unknown>;
+	existed: boolean;
+	verify: (document: Record<string, unknown>) => void;
+	dependencies: ModelsJsonDependencies;
+}): Promise<void> {
+	const { path, document, existed, verify, dependencies } = options;
 	const writeFileImpl = dependencies.writeFileImpl ?? writeFile;
 	const renameImpl = dependencies.renameImpl ?? rename;
 	const mkdirImpl = dependencies.mkdirImpl ?? mkdir;
 	const copyFileImpl = dependencies.copyFileImpl ?? copyFile;
 	const rmImpl = dependencies.rmImpl ?? rm;
-
-	const { path, providerId, config } = options;
-	const modelCount = assertValidProviderConfig(providerId, config);
-
-	let existed = true;
-	let document: Record<string, unknown>;
-	try {
-		document = parseModelsJson(await readFileImpl(path, "utf8"), path);
-	} catch (error) {
-		if ((error as NodeJS.ErrnoException)?.code === "ENOENT") {
-			existed = false;
-			document = {};
-		} else {
-			throw error;
-		}
-	}
-
-	const providers = (document.providers ??= {});
-	if (!isPlainObject(providers)) {
-		// parseModelsJson 已经挡掉了非对象 providers；这里是类型防御。
-		throw new Error(`${path} 的 providers 字段不是对象，拒绝刷新`);
-	}
-
-	if (
-		providerId in providers &&
-		!(options.replaceProviderIds ?? []).some(id => id !== providerId && id in providers) &&
-		stableStringify(providers[providerId]) === stableStringify(config)
-	) {
-		return { status: "unchanged", path };
-	}
-
-	providers[providerId] = config;
-	for (const id of options.replaceProviderIds ?? []) {
-		if (id !== providerId) delete providers[id];
-	}
+	const readFileImpl = dependencies.readFileImpl ?? readFile;
 	const serialized = `${JSON.stringify(document, null, 2)}\n`;
 
 	// 写入前往返校验：确保序列化结果仍然是合法 JSON 且目标 section 完整。
-	const roundTripped = parseModelsJson(serialized, `${path} (序列化结果)`);
-	const roundTrippedModels = (
-		(roundTripped.providers as Record<string, unknown>)[providerId] as ProviderConfig
-	).models;
-	if (!Array.isArray(roundTrippedModels) || roundTrippedModels.length !== modelCount) {
+	try {
+		verify(parseModelsJson(serialized, `${path} (序列化结果)`));
+	} catch {
 		throw new Error(`${path} 序列化往返校验失败，拒绝写入`);
 	}
 
@@ -220,13 +234,7 @@ async function refreshLocked(
 
 	// 写入后重读校验；失败时尽力从 .bak 恢复。
 	try {
-		const verified = parseModelsJson(await readFileImpl(path, "utf8"), path);
-		const verifiedModels = (
-			(verified.providers as Record<string, unknown>)[providerId] as ProviderConfig
-		).models;
-		if (!Array.isArray(verifiedModels) || verifiedModels.length !== modelCount) {
-			throw new Error("写入后校验发现目标 section 不完整");
-		}
+		verify(parseModelsJson(await readFileImpl(path, "utf8"), path));
 	} catch (error) {
 		if (existed) {
 			await copyFileImpl(backupPath, path).catch(() => undefined);
@@ -237,10 +245,61 @@ async function refreshLocked(
 			`${path} 写入后校验失败（${asError(error).message}），已尽量恢复原文件`,
 		);
 	}
+}
 
-	return {
-		status: existed ? "updated" : "created",
-		path,
-		modelCount,
-	};
+export async function refreshModelsJsonProvider(
+	options: RefreshOptions,
+	dependencies: ModelsJsonDependencies = {},
+): Promise<RefreshResult> {
+	const modelCount = assertValidProviderConfig(options.providerId, options.config);
+	const path = await resolveModelsJsonPath(options.path);
+
+	return withModelsJsonLock(path, async () => {
+		const { document, existed } = await readModelsDocument(
+			path,
+			dependencies.readFileImpl ?? readFile,
+		);
+		if (document.providers === undefined) document.providers = {};
+		const providers = document.providers;
+		if (!isPlainObject(providers)) {
+			// parseModelsJson 已经挡掉了非对象 providers；这里是类型防御。
+			throw new Error(`${path} 的 providers 字段不是对象，拒绝刷新`);
+		}
+
+		const replaceProviderIds = options.replaceProviderIds ?? [];
+		if (
+			options.providerId in providers &&
+			!replaceProviderIds.some(id => id !== options.providerId && id in providers) &&
+			stableStringify(providers[options.providerId]) === stableStringify(options.config)
+		) {
+			return { status: "unchanged", path };
+		}
+
+		providers[options.providerId] = options.config;
+		for (const id of replaceProviderIds) {
+			if (id !== options.providerId) delete providers[id];
+		}
+
+		await writeModelsDocument({
+			path,
+			document,
+			existed,
+			verify: (parsed) => {
+				const section = isPlainObject(parsed.providers)
+					? parsed.providers[options.providerId]
+					: undefined;
+				const models = isPlainObject(section) ? section.models : undefined;
+				if (!Array.isArray(models) || models.length !== modelCount) {
+					throw new Error("写入后校验发现目标 section 不完整");
+				}
+			},
+			dependencies,
+		});
+
+		return {
+			status: existed ? "updated" : "created",
+			path,
+			modelCount,
+		};
+	});
 }

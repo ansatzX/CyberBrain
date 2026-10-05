@@ -22,7 +22,13 @@ import {
 	type ProviderModel,
 } from "../lib/third-party/aihubmix.ts";
 import { availableModel, detailedModel, runAIHubMix } from "./fixtures.ts";
-import { deepSeekProtocol, deepSeekProviderConfig, installDeepSeekWebSearch, refreshDeepSeekModelsJson, registerDeepSeek } from "../lib/third-party/deepseek-full.ts";
+import {
+	deepSeekProtocol,
+	deepSeekProviderConfig,
+	installDeepSeekWebSearch,
+	refreshDeepSeekModelsJson,
+	registerDeepSeek,
+} from "../lib/third-party/deepseek-full.ts";
 import deepSeekExtension from "../extensions/deepseek-full.ts";
 import aihubmixExtension from "../extensions/aihubmix.ts";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
@@ -34,10 +40,13 @@ const normalizeOptions = {
 };
 
 test("parseList supports ASCII and Chinese separators", () => {
-	assert.deepEqual(
-		parseList("thinking，tools；reasoning、image|text text"),
-		["thinking", "tools", "reasoning", "image", "text"],
-	);
+	assert.deepEqual(parseList("thinking，tools；reasoning、image|text text"), [
+		"thinking",
+		"tools",
+		"reasoning",
+		"image",
+		"text",
+	]);
 });
 
 test("parseList accepts arrays and deduplicates normalized values", () => {
@@ -213,13 +222,19 @@ test("mergeLiveModels uses exact intersection and groups by vendor", () => {
 	// and the duplicate "second" is collapsed. Output is no longer in
 	// availability order — these fixtures share one vendor and carry no version
 	// digits, so they fall back to the deterministic name tiebreak.
-	assert.deepEqual(models.map((model) => model.id), ["first", "second"]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		["first", "second"],
+	);
 });
 
 test("models are grouped by vendor, newest version first", () => {
 	// Upstream reports every model with the same `created` constant, so ordering
 	// has to come from the vendor plus the version embedded in the id.
-	const vendorOf = (id: string, owned_by: string) => ({ ...availableModel(id), owned_by });
+	const vendorOf = (id: string, owned_by: string) => ({
+		...availableModel(id),
+		owned_by,
+	});
 	const models = mergeLiveModels(
 		[
 			vendorOf("claude-opus-4-8", "Anthropic"),
@@ -242,18 +257,21 @@ test("models are grouped by vendor, newest version first", () => {
 		normalizeOptions,
 	);
 
-	assert.deepEqual(models.map((model) => model.id), [
-		// Both vendors have 3 models, so the size tiebreak falls to the vendor name:
-		// "Anthropic" sorts before "OpenAI".
-		"claude-opus-5",
-		"claude-opus-4-8",
-		"claude-sonnet-4-6",
-		// "Openai" folds into "OpenAI" rather than forming its own group.
-		"gpt-5.6-sol",
-		"gpt-5.5",
-		"gpt-4o",
-		"deepseek-v4-flash",
-	]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		[
+			// Both vendors have 3 models, so the size tiebreak falls to the vendor name:
+			// "Anthropic" sorts before "OpenAI".
+			"claude-opus-5",
+			"claude-opus-4-8",
+			"claude-sonnet-4-6",
+			// "Openai" folds into "OpenAI" rather than forming its own group.
+			"gpt-5.6-sol",
+			"gpt-5.5",
+			"gpt-4o",
+			"deepseek-v4-flash",
+		],
+	);
 });
 
 test("vendor aliases fold and unknown vendors sort last", () => {
@@ -273,11 +291,17 @@ test("vendor aliases fold and unknown vendors sort last", () => {
 		["a3", "Other"],
 		["b1", "Anthropic"],
 	]);
-	const sorted = sortModelsByVendor([model("a1"), model("a2"), model("a3"), model("b1")], vendors);
+	const sorted = sortModelsByVendor(
+		[model("a1"), model("a2"), model("a3"), model("b1")],
+		vendors,
+	);
 	assert.equal(sorted[0].id, "b1", "a real vendor precedes the catch-all");
 	// Within "Other" the version order still applies (a3 > a2 > a1), so assert
 	// the group placement rather than one specific trailing id.
-	assert.deepEqual(sorted.slice(1).map((entry) => entry.id), ["a3", "a2", "a1"]);
+	assert.deepEqual(
+		sorted.slice(1).map((entry) => entry.id),
+		["a3", "a2", "a1"],
+	);
 });
 
 test("modelVersionKey compares numeric segments, not text", () => {
@@ -295,7 +319,10 @@ test("modelVersionKey compares numeric segments, not text", () => {
 });
 
 test("current flagships outrank dated snapshots and sized variants", () => {
-	const vendorOf = (id: string) => ({ ...availableModel(id), owned_by: "OpenAI" });
+	const vendorOf = (id: string) => ({
+		...availableModel(id),
+		owned_by: "OpenAI",
+	});
 	const ids = ["o1-2024-12-17", "gpt-oss-120b", "gpt-5.6-sol", "gpt-5.5"];
 	const models = mergeLiveModels(
 		ids.map(vendorOf),
@@ -303,12 +330,10 @@ test("current flagships outrank dated snapshots and sized variants", () => {
 		normalizeOptions,
 	);
 
-	assert.deepEqual(models.map((model) => model.id), [
-		"gpt-5.6-sol",
-		"gpt-5.5",
-		"o1-2024-12-17",
-		"gpt-oss-120b",
-	]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		["gpt-5.6-sol", "gpt-5.5", "o1-2024-12-17", "gpt-oss-120b"],
+	);
 });
 
 test("mergeLiveModels rejects a non-empty result with no intersection", () => {
@@ -495,12 +520,16 @@ test("fresh complete cache returns immediately without network access", async ()
 			throw new Error("network must not run for fresh cache");
 		},
 		readCacheImpl: async () => cache,
-		writeCacheImpl: async () => assert.fail("fresh cache must not be rewritten"),
+		writeCacheImpl: async () =>
+			assert.fail("fresh cache must not be rewritten"),
 		warn: () => undefined,
 	});
 
 	assert.equal(fetches, 0);
-	assert.deepEqual(models.map((model) => model.id), ["cached"]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		["cached"],
+	);
 });
 
 test("discovery starts both endpoints concurrently and caches complete results", async () => {
@@ -511,7 +540,9 @@ test("discovery starts both endpoints concurrently and caches complete results",
 		fetchImpl: async (input) => {
 			const url = String(input);
 			calls.push(url);
-			return await new Promise<Response>((resolve) => pending.set(url, resolve));
+			return await new Promise<Response>((resolve) =>
+				pending.set(url, resolve),
+			);
 		},
 		readCacheImpl: async () => undefined,
 		writeCacheImpl: async (_path, cache) => {
@@ -532,7 +563,10 @@ test("discovery starts both endpoints concurrently and caches complete results",
 		jsonResponse({ data: [detailedModel("one")] }),
 	);
 
-	assert.deepEqual((await promise).map((model) => model.id), ["one"]);
+	assert.deepEqual(
+		(await promise).map((model) => model.id),
+		["one"],
+	);
 	assert.equal(written.length, 1);
 	assert.deepEqual(written[0].available, [availableModel("one")]);
 });
@@ -563,10 +597,10 @@ test("discovery uses live availability with cached metadata fallback", async () 
 		warn: () => undefined,
 	});
 
-	assert.deepEqual(models.map((model) => model.id), [
-		"enriched",
-		"new-default",
-	]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		["enriched", "new-default"],
+	);
 	assert.equal(models[0].contextWindow, 200_000);
 	assert.equal(models[1].contextWindow, 128_000);
 	assert.equal(writes, 0);
@@ -590,7 +624,10 @@ test("discovery falls back to complete cache when availability fails", async () 
 		warn: () => undefined,
 	});
 
-	assert.deepEqual(models.map((model) => model.id), ["cached"]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		["cached"],
+	);
 });
 
 test("discovery fails without cache after availability failure", async () => {
@@ -642,51 +679,81 @@ test("cache write failure warns without discarding live discovery", async () => 
 		warn: (message) => warnings.push(message),
 	});
 
-	assert.deepEqual(models.map((model) => model.id), ["one"]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		["one"],
+	);
 	assert.match(warnings.join("\n"), /disk full/);
 });
 
-test("AIHubMix ignores plugin API-key env and skips catalog without Pi auth or when disabled", async () => {
+test("AIHubMix ignores plugin API-key env and skips catalog without Pi auth", async () => {
 	for (const environment of [
 		{},
 		{ AIHUBMIX_API_KEY: "ignored-environment-key" },
-		{ AIHUBMIX_MODELS_JSON_REFRESH: "off" },
 	]) {
 		const registrations: unknown[] = [];
-		const reloads = await runAIHubMix({ registerProvider: (name, config) => registrations.push({ name, config }) }, environment, {
-			fetchImpl: async () => assert.fail("must not fetch"),
-			readCacheImpl: async () => assert.fail("must not read cache"),
-		}, environment.AIHUBMIX_MODELS_JSON_REFRESH ? "stored-key" : "");
+		const reloads = await runAIHubMix(
+			{
+				registerProvider: (name, config) =>
+					registrations.push({ name, config }),
+			},
+			environment,
+			{
+				fetchImpl: async () => assert.fail("must not fetch"),
+				readCacheImpl: async () => assert.fail("must not read cache"),
+			},
+			"",
+		);
 		assert.equal(reloads, 0);
-		assert.deepEqual(registrations, [{ name: "aihubmix", config: { baseUrl: "https://api.inferera.com/v1" } }]);
+		assert.deepEqual(registrations, []);
 	}
 });
 
-test("AIHubMix discovery failure leaves the native endpoint override active", async () => {
+test("AIHubMix discovery failure only warns and leaves providers untouched", async () => {
 	const registrations: unknown[] = [];
 	const warnings: string[] = [];
-	await runAIHubMix({ registerProvider: (name, config) => registrations.push({ name, config }) }, {
-		AIHUBMIX_ORIGIN: "https://example.test/",
-	}, {
-		fetchImpl: async () => { throw new Error("offline"); },
-		readCacheImpl: async () => undefined,
-		warn: (message) => warnings.push(message),
-	});
-	assert.deepEqual(registrations, [{ name: "aihubmix", config: { baseUrl: "https://example.test/v1" } }]);
-	assert.match(warnings.join("\n"), /refresh failed.*endpoint override remains active/);
+	await runAIHubMix(
+		{
+			registerProvider: (name, config) => registrations.push({ name, config }),
+		},
+		{
+			AIHUBMIX_ORIGIN: "https://example.test/",
+		},
+		{
+			fetchImpl: async () => {
+				throw new Error("offline");
+			},
+			readCacheImpl: async () => undefined,
+			warn: (message) => warnings.push(message),
+		},
+	);
+	assert.deepEqual(registrations, []);
+	assert.match(
+		warnings.join("\n"),
+		/models\.json refresh failed[\s\S]*offline/,
+	);
 });
 
 test("registerDeepSeek registers exactly Flash and Pro", () => {
-	const registrations: Array<{ name: string; config: Record<string, unknown> }> = [];
-	registerDeepSeek({ registerProvider: (name, config) => registrations.push({ name, config }) }, {});
+	const registrations: Array<{
+		name: string;
+		config: Record<string, unknown>;
+	}> = [];
+	registerDeepSeek(
+		{
+			registerProvider: (name, config) => registrations.push({ name, config }),
+		},
+		{},
+	);
 	assert.equal(registrations[0].name, "deepseek-full");
 	assert.equal(registrations[0].config.name, "DeepSeek Full · 全功能");
 	assert.equal(registrations[0].config.api, "anthropic-messages");
 	assert.equal(registrations[0].config.apiKey, "$DEEPSEEK_API_KEY");
 	const models = registrations[0].config.models as ProviderModel[];
-	assert.deepEqual(models.map(model => model.id), [
-		"deepseek-flash", "deepseek-v4-pro",
-	]);
+	assert.deepEqual(
+		models.map((model) => model.id),
+		["deepseek-flash", "deepseek-v4-pro"],
+	);
 	for (const model of models) {
 		assert.equal(model.name, model.id);
 		assert.equal(model.contextWindow, 1_000_000);
@@ -695,24 +762,53 @@ test("registerDeepSeek registers exactly Flash and Pro", () => {
 	}
 	for (const flash of models.slice(0, 1)) {
 		assert.deepEqual(flash.input, ["text", "image"]);
-		assert.deepEqual(flash.cost, { input: 0.3, output: 1.2, cacheRead: 0.006, cacheWrite: 0 });
+		assert.deepEqual(flash.cost, {
+			input: 0.3,
+			output: 1.2,
+			cacheRead: 0.006,
+			cacheWrite: 0,
+		});
 		assert.deepEqual((flash as any).thinkingLevelMap, {
-			off: "none", minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max",
+			off: "none",
+			minimal: null,
+			low: "low",
+			medium: null,
+			high: "high",
+			xhigh: null,
+			max: "max",
 		});
 	}
 	assert.deepEqual(models[1].input, ["text"]);
-	assert.deepEqual(models[1].cost, { input: 1.32, output: 3.96, cacheRead: 0.044, cacheWrite: 0 });
+	assert.deepEqual(models[1].cost, {
+		input: 1.32,
+		output: 3.96,
+		cacheRead: 0.044,
+		cacheWrite: 0,
+	});
 	assert.deepEqual((models[1] as any).thinkingLevelMap, {
-		off: "none", minimal: null, low: "low", medium: null, high: "high", xhigh: null, max: "max",
+		off: "none",
+		minimal: null,
+		low: "low",
+		medium: null,
+		high: "high",
+		xhigh: null,
+		max: "max",
 	});
 });
 
 test("DeepSeek exposes exactly off/low/high/max for both models and protocols", () => {
 	for (const protocol of ["anthropic", "responses"]) {
-		for (const model of deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol }).models) {
+		for (const model of deepSeekProviderConfig({
+			CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol,
+		}).models) {
 			assert.deepEqual(model.thinkingLevelMap, {
-				off: "none", minimal: null, low: "low", medium: null,
-				high: "high", xhigh: null, max: "max",
+				off: "none",
+				minimal: null,
+				low: "low",
+				medium: null,
+				high: "high",
+				xhigh: null,
+				max: "max",
 			});
 		}
 	}
@@ -728,12 +824,26 @@ test("aihubmix extension keeps the native endpoint override without a nonempty k
 	delete process.env.AIHUBMIX_API_KEY;
 	try {
 		await aihubmixExtension({
-			registerProvider: (name, config) => assert.deepEqual({ name, config }, { name: "aihubmix", config: { baseUrl: "https://api.inferera.com/v1" } }),
+			registerProvider: (name, config) =>
+				assert.deepEqual(
+					{ name, config },
+					{
+						name: "aihubmix",
+						config: { baseUrl: "https://api.inferera.com/v1" },
+					},
+				),
 			on: (event) => assert.equal(event, "session_start"),
 		} as unknown as ExtensionAPI);
 		process.env.AIHUBMIX_API_KEY = "   ";
 		await aihubmixExtension({
-			registerProvider: (name, config) => assert.deepEqual({ name, config }, { name: "aihubmix", config: { baseUrl: "https://api.inferera.com/v1" } }),
+			registerProvider: (name, config) =>
+				assert.deepEqual(
+					{ name, config },
+					{
+						name: "aihubmix",
+						config: { baseUrl: "https://api.inferera.com/v1" },
+					},
+				),
 			on: (event) => assert.equal(event, "session_start"),
 		} as unknown as ExtensionAPI);
 	} finally {
@@ -762,11 +872,15 @@ test("deepseek extension registers without any environment keys", async () => {
 		// deepseek 扩展必须照常注册（pi 按扩展文件隔离）。
 		await deepSeekExtension(pi as never);
 	} finally {
-		if (previous === undefined) delete process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH;
+		if (previous === undefined)
+			delete process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH;
 		else process.env.CYBERBRAIN_DEEPSEEK_MODELS_JSON_REFRESH = previous;
 	}
 	assert.deepEqual(providers, ["deepseek-full"]);
-	assert.ok(events.includes("before_provider_request"), "web search hook must be installed");
+	assert.ok(
+		events.includes("before_provider_request"),
+		"web search hook must be installed",
+	);
 });
 
 test("deepseek models.json refresh mirrors the registered provider", async () => {
@@ -780,11 +894,17 @@ test("deepseek models.json refresh mirrors the registered provider", async () =>
 		const written = JSON.parse(await readFile(path, "utf8"));
 		const mirrored = written.providers["deepseek-full"];
 		// models.json 必须与进程内注册的配置逐字一致，否则两条路径会漂移。
-		const registrations: Array<{ name: string; config: Record<string, unknown> }> = [];
-		registerDeepSeek({
-			registerProvider: (name: string, config: Record<string, unknown>) =>
-				registrations.push({ name, config }),
-		}, {});
+		const registrations: Array<{
+			name: string;
+			config: Record<string, unknown>;
+		}> = [];
+		registerDeepSeek(
+			{
+				registerProvider: (name: string, config: Record<string, unknown>) =>
+					registrations.push({ name, config }),
+			},
+			{},
+		);
 		assert.deepEqual(mirrored, registrations[0].config);
 	} finally {
 		await rm(dir, { recursive: true, force: true });
@@ -818,27 +938,62 @@ test("deepseek models.json refresh failure never blocks registration", async () 
 
 test("DeepSeek protocol defaults to Anthropic and supports explicit Responses", () => {
 	assert.equal(deepSeekProtocol({}), "anthropic");
-	assert.equal(deepSeekProviderConfig({}).baseUrl, "https://api.deepseek.com/anthropic");
-	const responses = deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: " responses " });
+	assert.equal(
+		deepSeekProviderConfig({}).baseUrl,
+		"https://api.deepseek.com/anthropic",
+	);
+	const responses = deepSeekProviderConfig({
+		CYBERBRAIN_DEEPSEEK_PROTOCOL: " responses ",
+	});
 	assert.equal(responses.api, "openai-responses");
 	assert.equal(responses.baseUrl, "https://api.deepseek.com");
-	assert.ok(responses.models.every(model => !("compat" in model)));
-	assert.throws(() => deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: "invalid" }), /anthropic or responses/);
+	assert.ok(responses.models.every((model) => !("compat" in model)));
+	assert.throws(
+		() => deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: "invalid" }),
+		/anthropic or responses/,
+	);
 });
 
 test("DeepSeek Anthropic search supports both models without mutation or duplicate tools", () => {
 	const handlers: Array<(event: any, ctx: any) => any> = [];
-	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, {});
+	installDeepSeekWebSearch(
+		{ on: (_event: string, handler: any) => handlers.push(handler) },
+		{},
+	);
 	for (const model of ["deepseek-flash", "deepseek-v4-pro"]) {
 		const ctx = { model: { provider: "deepseek-full" } };
-		const payload = { model, messages: [], tools: [{ name: "read", input_schema: { type: "object" } }] };
+		const payload = {
+			model,
+			messages: [],
+			tools: [{ name: "read", input_schema: { type: "object" } }],
+		};
 		const next = handlers[0]({ payload }, ctx);
-		assert.deepEqual(next.tools, [...payload.tools, { type: "web_search_20250305", name: "web_search", max_uses: 3 }]);
+		assert.deepEqual(next.tools, [
+			...payload.tools,
+			{ type: "web_search_20250305", name: "web_search", max_uses: 3 },
+		]);
 		assert.equal(payload.tools.length, 1);
 		assert.equal(handlers[0]({ payload: next }, ctx), undefined);
-		assert.equal(handlers[0]({ payload: { ...payload, tools: [{ name: "web_search", input_schema: {} }] } }, ctx), undefined);
-		assert.equal(handlers[0]({ payload }, { model: { provider: "deepseek" } }), undefined);
-		assert.equal(handlers[0]({ payload: { model, input: [] } }, ctx), undefined);
+		assert.equal(
+			handlers[0](
+				{
+					payload: {
+						...payload,
+						tools: [{ name: "web_search", input_schema: {} }],
+					},
+				},
+				ctx,
+			),
+			undefined,
+		);
+		assert.equal(
+			handlers[0]({ payload }, { model: { provider: "deepseek" } }),
+			undefined,
+		);
+		assert.equal(
+			handlers[0]({ payload: { model, input: [] } }, ctx),
+			undefined,
+		);
 	}
 });
 
@@ -846,44 +1001,87 @@ test("DeepSeek catalog migrates the legacy provider while preserving built-in De
 	const dir = await mkdtemp(join(tmpdir(), "deepseek-migration-"));
 	try {
 		const path = join(dir, "models.json");
-		const original = { providers: { deepseek: { custom: true }, "deepseek-responses": { old: true } }, extra: 42 };
+		const original = {
+			providers: {
+				deepseek: { custom: true },
+				"deepseek-responses": { old: true },
+			},
+			extra: 42,
+		};
 		await writeFile(path, JSON.stringify(original));
 		for (const protocol of ["anthropic", "responses"]) {
-			await refreshDeepSeekModelsJson({ CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: path, CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol });
+			await refreshDeepSeekModelsJson({
+				CYBERBRAIN_DEEPSEEK_MODELS_JSON_PATH: path,
+				CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol,
+			});
 			const actual = JSON.parse(await readFile(path, "utf8"));
 			assert.equal(actual.providers["deepseek-responses"], undefined);
 			assert.deepEqual(actual.providers.deepseek, original.providers.deepseek);
 			assert.equal(actual.extra, 42);
-			assert.deepEqual(actual.providers["deepseek-full"], deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol }));
+			assert.deepEqual(
+				actual.providers["deepseek-full"],
+				deepSeekProviderConfig({ CYBERBRAIN_DEEPSEEK_PROTOCOL: protocol }),
+			);
 		}
-	} finally { await rm(dir, { recursive: true, force: true }); }
+	} finally {
+		await rm(dir, { recursive: true, force: true });
+	}
 });
 
 test("DeepSeek Pro web search is default-on and can be disabled", () => {
 	const handlers: Array<(event: any, ctx: any) => unknown> = [];
-	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, { CYBERBRAIN_DEEPSEEK_PROTOCOL: "responses" });
+	installDeepSeekWebSearch(
+		{ on: (_event: string, handler: any) => handlers.push(handler) },
+		{ CYBERBRAIN_DEEPSEEK_PROTOCOL: "responses" },
+	);
 	const payload = { model: "deepseek-v4-pro", input: [], tools: [] };
-	const enabled = handlers[0]({ payload }, { model: { provider: "deepseek-full" } }) as { tools: unknown[] };
+	const enabled = handlers[0](
+		{ payload },
+		{ model: { provider: "deepseek-full" } },
+	) as { tools: unknown[] };
 	assert.deepEqual(enabled.tools, [{ type: "web_search" }]);
 
 	const disabled: unknown[] = [];
-	installDeepSeekWebSearch({ on: (_event: string, handler: any) => disabled.push(handler) }, { CYBERBRAIN_DEEPSEEK_WEB_SEARCH: "0" });
+	installDeepSeekWebSearch(
+		{ on: (_event: string, handler: any) => disabled.push(handler) },
+		{ CYBERBRAIN_DEEPSEEK_WEB_SEARCH: "0" },
+	);
 	assert.equal(disabled.length, 0);
 });
 
 test("DeepSeek web search ignores every other provider", () => {
 	const handlers: Array<(event: any, ctx: any) => unknown> = [];
-	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, {});
+	installDeepSeekWebSearch(
+		{ on: (_event: string, handler: any) => handlers.push(handler) },
+		{},
+	);
 	const payload = { model: "gpt-5.6-sol", input: [], tools: [] };
-	assert.equal(handlers[0]({ payload }, { model: { provider: "aihubmix" } }), undefined);
+	assert.equal(
+		handlers[0]({ payload }, { model: { provider: "aihubmix" } }),
+		undefined,
+	);
 });
 
 test("DeepSeek Flash and its legacy aliases do not receive web search", () => {
 	const handlers: Array<(event: any, ctx: any) => unknown> = [];
-	installDeepSeekWebSearch({ on: (_event: string, handler: any) => handlers.push(handler) }, {});
-	for (const model of ["deepseek-flash", "deepseek-v4-flash", "deepseek-v4-flash-vision-exp"]) {
-		const payload = { model, input: [], tools: [{ type: "function", name: "read" }] };
-		assert.equal(handlers[0]({ payload }, { model: { provider: "deepseek-full" } }), undefined);
+	installDeepSeekWebSearch(
+		{ on: (_event: string, handler: any) => handlers.push(handler) },
+		{},
+	);
+	for (const model of [
+		"deepseek-flash",
+		"deepseek-v4-flash",
+		"deepseek-v4-flash-vision-exp",
+	]) {
+		const payload = {
+			model,
+			input: [],
+			tools: [{ type: "function", name: "read" }],
+		};
+		assert.equal(
+			handlers[0]({ payload }, { model: { provider: "deepseek-full" } }),
+			undefined,
+		);
 		assert.deepEqual(payload.tools, [{ type: "function", name: "read" }]);
 	}
 });

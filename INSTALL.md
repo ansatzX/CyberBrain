@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | `pi-subagents` (npm) | 子代理委派扩展（单次调用 / workflowScript 编排） | 作为独立 Pi 包安装：`pi install npm:pi-subagents`（下方第 2 步） |
 | `pi-lens` (npm) | 实时代码反馈（LSP / linters / formatters / type-checking） | 作为独立 Pi 包安装：`pi install npm:pi-lens`（下方第 2 步） |
+| `@aihubmix/pi-provider-aihubmix` (npm) | 官方 AIHubMix provider（模型、认证、协议路由）；本仓库扩展只把 base URL 切到 Preferred 端点并镜像 models.json，不改官方包 | 作为独立 Pi 包安装：`pi install npm:@aihubmix/pi-provider-aihubmix`（下方第 2 步） |
 | `AIHUBMIX_API_KEY` | AIHubMix provider | 可选环境变量；缺失时仅禁用该 provider |
 | `DEEPSEEK_API_KEY` | `deepseek-full`（Anthropic / Responses 共用） | 可选环境变量；缺失时该 provider 不可调用 |
 | `CUHKSZ_API_KEY` | CUHKSZ provider | 可选环境变量；缺失时仅禁用该 provider |
@@ -35,6 +36,7 @@ cd ~/soft/CyberBrain
 # 2. 安装必需依赖（全局 Pi 包，跟随上游最新版）
 pi install npm:pi-subagents
 pi install npm:pi-lens
+pi install npm:@aihubmix/pi-provider-aihubmix
 
 # 3. 注册完整本地包到 Pi（写入所选 agent home 的 settings.json）
 bash tools/manage-pi.sh install
@@ -54,7 +56,7 @@ bash tools/manage-pi.sh doctor
 新开 pi 会话后可用：
 
 - **扩展命令**：`/ansatz:goal`（长任务目标：`set` / `view` / `pause` / `resume` / `clear`；active 目标在每轮结束后自动续跑，受下方五项预算约束）、`/ansatz:diff`、`/ansatz:status`、slash 模式框架（`/ansatz:review`、`/ansatz:python`）
-- **providers**：`aihubmix/*`（实时模型发现）、`deepseek-full/deepseek-flash` / `deepseek-v4-pro`（V4.1 Flash 支持图片；1M 上下文、384K 最大输出；两者均支持 off/low/high/max，Pi 的 off 对应 Responses 的 none）、`cuhksz/glm-5-fp8`（固定唯一模型，256K / 262144 tokens 上下文，每次启动写回 `models.json`）
+- **providers**：`aihubmix/*`（把官方插件的 Default base URL `https://aihubmix.com` 在运行时切到 Preferred base URL `https://api.inferera.com`，含目录端点；本仓库不改官方包。协议按目录 `endpoints` 字段逐模型决定：claude-*开放 claude_api 走 anthropic、gemini-* 开放 gemini_api 走 gemini、开放 responses 的优先 responses、其余 chat）、`deepseek-full/deepseek-flash` / `deepseek-v4-pro`（V4.1 Flash 支持图片；1M 上下文、384K 最大输出；两者均支持 off/low/high/max，Pi 的 off 对应 Responses 的 none）、`cuhksz/glm-5-fp8`（固定唯一模型，256K / 262144 tokens 上下文，每次启动写回 `models.json`）
 - **pi-subagents**：子代理委派引擎（单次调用 / workflowScript 串行与并行编排 / async supervision），作为独立 Pi 包从所选配置目录加载（默认 `~/.pi/agent/npm`）
 - **pi-lens**：实时代码反馈（LSP / linters / formatters / type-checking），作为全局 Pi 包从 `~/.pi/agent/npm` 加载
 - **集群技能**：`agent-cluster`（多代理启动/监督/fan-in）+ `pick-model`（按次委派的模型与思考档位选择）
@@ -131,6 +133,6 @@ bash tools/manage-pi.sh uninstall
 - **安装提示路径或清单不安全**：不要绕过检查或清空配置目录。确认选定 Pi home、软链接父目录和恢复清单；嵌套未知链接、越界路径和用户修改会阻止操作。
 - **提示另一个安装任务正在运行**：等待该任务退出再重试。安装、更新、卸载共用操作系统文件锁，进程退出自动释放；不要删除锁文件来强行并行执行。
 - **改动不生效**：扩展在会话启动时加载，必须**新开 pi 会话**。
-- **doctor 显示 `DISABLED` / `UNAVAILABLE`**：对应 provider key 未配置。`aihubmix` / `cuhksz` 不注册，`deepseek-full` 不可调用；均不影响安装健康状态与其他功能，按需 export 即可。
+- **doctor 显示 `DISABLED` / `UNAVAILABLE`**：对应 provider key 未配置（doctor 只报告 `deepseek-full` / `cuhksz`）。`cuhksz` 不注册，`deepseek-full` 不可调用；`aihubmix` 的 provider 本体由官方 npm 包提供，本仓库只在本仓库代码里把它的 base URL 切到 Preferred 端点（默认 `https://api.inferera.com`）并镜像 `models.json`，不改官方包。均不影响安装健康状态与其他功能，按需 export 即可。
 
 最新模型配置核对于 2026-09-15：[官方模型与价格](https://api-docs.deepseek.com/quick_start/pricing/)。仅登记 `deepseek-flash` 和 `deepseek-v4-pro`，旧 Flash 别名不再登记。费用估算按高峰价，实际低谷价减半。启动时 `models.json` 镜像同步采用同一份模型配置。
