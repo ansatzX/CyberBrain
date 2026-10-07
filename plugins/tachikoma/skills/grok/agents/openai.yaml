@@ -1,0 +1,4 @@
+interface:
+  display_name: "Grok Build"
+  short_description: "Run Grok Build with verified boundaries"
+  default_prompt: "Use $grok to run Grok Build only after checking its installed CLI help, preserving the user's configured model, and establishing the requested execution boundary."

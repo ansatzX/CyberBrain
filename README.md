@@ -33,29 +33,26 @@ CyberBrain is a personal agent configuration repository with first-class host ad
 
 ## Codex Installation
 
-Clone and register the marketplace:
+Clone, register the marketplace, and install the three published plugins:
 
 ```bash
 mkdir -p ~/soft
 git clone https://github.com/ansatzX/CyberBrain.git ~/soft/CyberBrain
 cd ~/soft/CyberBrain
 codex plugin marketplace add ~/soft/CyberBrain
+codex plugin add awesome-agent-select@CyberBrain
+codex plugin add tachikoma@CyberBrain
+codex plugin add brain@CyberBrain
 ```
 
-Install plugins through the interactive plugin browser:
-
-```bash
-codex
-/plugins
-```
-
-In the plugin browser, switch to the **CyberBrain** marketplace tab and install each plugin.
-Press <kbd>Space</kbd> on an installed plugin to toggle its enabled state.
+Alternatively, after adding the marketplace, open `codex` and use `/plugins` on the **CyberBrain** tab. Press Space to toggle an installed plugin's enabled state.
 To remove the marketplace: `codex plugin marketplace remove CyberBrain`.
+
+Plugin installation alone does not make Codex agent roles visible. See [INSTALL.md](INSTALL.md) for the full Codex and Pi install, update, and uninstall guide.
 
 ### Agent Roles (awesome-agent-select)
 
-Install `awesome-agent-select` from `/plugins`, then explicitly install its Codex agent roles:
+Install `awesome-agent-select` from the marketplace, then explicitly install its Codex agent roles:
 
 ```bash
 bash tools/awesome-agent-select-codex-agents.sh install
@@ -126,7 +123,7 @@ Restart/reload/session re-entry pauses a saved active goal; use `/ansatz:goal re
 
 The custom DeepSeek extension is `pi/extensions/deepseek-full.ts`, backed by `pi/lib/third-party/deepseek-full.ts`, with provider ID `deepseek-full` and display name `DeepSeek Full · 全功能`, distinct from built-in `deepseek`. It registers only `deepseek-flash` and `deepseek-v4-pro` (display names equal IDs).
 
-`CYBERBRAIN_DEEPSEEK_PROTOCOL=anthropic` is the default: `anthropic-messages` at `https://api.deepseek.com/anthropic`. Set `CYBERBRAIN_DEEPSEEK_PROTOCOL=responses` before starting Pi to use `openai-responses` at `https://api.deepseek.com`. Unknown values fail explicitly. Registration, request hooks and the catalog mirror use the same startup configuration. Restart after changing protocol; external catalog readers need a refreshed catalog. For upgrades, follow the complete package update in [INSTALL.md](INSTALL.md#更新), not per-file replacement instructions.
+`CYBERBRAIN_DEEPSEEK_PROTOCOL=anthropic` is the default: `anthropic-messages` at `https://api.deepseek.com/anthropic`. Set `CYBERBRAIN_DEEPSEEK_PROTOCOL=responses` before starting Pi to use `openai-responses` at `https://api.deepseek.com`. Unknown values fail explicitly. Registration, request hooks and the catalog mirror use the same startup configuration. Restart after changing protocol; external catalog readers need a refreshed catalog. For upgrades, follow the complete Pi package update in [INSTALL.md](INSTALL.md#pi), not per-file replacement instructions.
 
 Anthropic mode injects `web_search_20250305` for both models with `max_uses: 3`. Responses mode injects `web_search` only for Pro (Flash Responses did not execute search in live testing). `CYBERBRAIN_DEEPSEEK_WEB_SEARCH=0` disables automatic injection in either mode. Injection makes a tool available; it does not force the model to search. Pi's current Anthropic adapter renders final text but does not retain raw server-search result blocks in its normalized message history; source links in final text are not a guarantee of structured citation preservation.
 
@@ -165,7 +162,7 @@ The `aihubmix` catalog is written grouped by vendor, newest version first within
 
 | Resource | Source | What you get |
 | ---------- | -------- | -------------- |
-| Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals with budgeted auto-continuation, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:python`) |
+| Extensions | `pi/extensions/` | `/ansatz:goal` long-task goals with budgeted auto-continuation, `/ansatz:diff`, `/ansatz:status`, slash-mode framework (`/ansatz:review`, `/ansatz:py`, `/ansatz:mode`) |
 | Providers | `pi/lib/third-party/` | `aihubmix/*` (preferred-base-URL swap, family-aware protocols + `models.json` mirror), `deepseek-full/deepseek-flash` / `deepseek-v4-pro` (1M context; both expose off/low/high/max; Responses sends `none` for Pi's `off`), and `cuhksz/glm-5-fp8` (fixed single model, 256K context, `models.json` mirror) |
 | Skills | `pi/skills/` | `pick-model` (per-launch model/thinking routing), `agent-cluster` (multi-agent lifecycle), `pi-extension-dev` |
 | Shared skills | `plugins/*/skills/` | brain, tachikoma, and awesome-agent-select skills, loaded single-source |
@@ -215,6 +212,10 @@ pi/
 and the Pi package’s shared-skill references. Each host uses its own execution
 tools; installing a skill does not install the external CLI.
 
+For Pi runs launched through Tachikoma, the skill passes `--no-lens` on each
+invocation so pi-lens cannot interrupt the delegated agent's execution loop.
+Ordinary interactive Pi sessions keep their existing pi-lens behavior.
+
 A verified one-call task captures output and exit status without mandatory durable
 coordinator files. Multi-round, background and resumable tasks keep a session log
 and summary. Resume preserves the actual session and exact tool boundary; Pi tool
@@ -227,6 +228,7 @@ Included skills:
 - `opencode`
 - `qwen`
 - `github-copilot-cli`
+- `grok`
 - `kimi-code`
 - `pi`
 

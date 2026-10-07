@@ -22,6 +22,33 @@ Omit `--model` by default. Preserve the configured model unless the user explici
 
 The installed CLI documents `--approval-mode plan` as read-only. Verify that option before using it. `auto_edit` approves edits, and `yolo` approves all tool actions; each requires the boundary and approval specified in the shared protocol. `--sandbox` is an isolation setting, not evidence that the task is read-only.
 
+## Keep CLI updates under user control
+
+Gemini CLI automatic updates are enabled by default. Before starting a task run,
+confirm the effective setting is disabled with
+`general.enableAutoUpdate: false`. The usual user setting is
+`~/.gemini/settings.json`:
+
+```json
+{
+  "general": {
+    "enableAutoUpdate": false
+  }
+}
+```
+
+Merge this key into the existing JSON; preserve other settings. Project
+`.gemini/settings.json` can override user settings, and system settings can
+override both. If the effective value cannot be confirmed as `false`, do not
+start Gemini; report the required setting instead of changing user config.
+`general.enableAutoUpdateNotification` controls update notifications, not
+whether updates are installed.
+
+Do not run Gemini CLI self-update, `npm install -g @google/gemini-cli`, or
+extension update commands during a delegated task. Only perform an upgrade when
+the user explicitly requests one, and then follow the user's package-manager
+choice. Never silently switch an OS-managed installation to an npm-managed one.
+
 ## Command patterns
 
 ```bash
@@ -35,7 +62,7 @@ gemini --approval-mode auto_edit -p "<prompt>"
 gemini --resume latest -p "<follow-up prompt>"
 ```
 
-Use `--worktree` only when the user requests or approves creation of a new worktree. Do not add `--yolo` merely to avoid prompts.
+Use `--worktree` only when the user requests or approves creation of a new worktree. Do not add `--yolo` merely to avoid prompts. Keep the Gemini CLI installation itself unchanged during normal task runs.
 
 ## Completion
 

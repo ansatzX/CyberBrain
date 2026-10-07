@@ -25,7 +25,7 @@ if [ -e "$log_dir/execution-boundary.txt" ]; then
 else
   printf '%s\n' "$record" > "$log_dir/execution-boundary.txt"
 fi
-args=(--session-id "$session")
+args=(--no-lens --session-id "$session")
 if [ "$boundary" = read-only ]; then
   args+=(--tools read,grep,find,ls)
 fi

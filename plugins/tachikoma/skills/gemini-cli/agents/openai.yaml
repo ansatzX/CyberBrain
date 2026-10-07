@@ -1,4 +1,4 @@
 interface:
   display_name: "Gemini CLI"
   short_description: "Coordinate a current Gemini CLI session"
-  default_prompt: "Use $gemini-cli to run Gemini CLI only after checking the installed command help, preserving the user's configured model unless they explicitly choose another, and establishing the requested permission boundary."
+  default_prompt: "Use $gemini-cli to run Gemini CLI only after checking the installed command help, confirming automatic CLI updates are disabled, preserving the user's configured model unless they explicitly choose another, and establishing the requested permission boundary. Do not update the CLI or its extensions unless the user explicitly requests an upgrade."

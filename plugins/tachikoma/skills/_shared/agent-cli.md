@@ -19,6 +19,11 @@ every round. Recheck after an upgrade, PATH/target-environment change, unfamilia
 subcommand or behavior inconsistent with the cached contract. Configuration and
 permission changes still require their own checks. Examples do not override help.
 
+When the selected CLI is Pi, apply `../pi/SKILL.md`'s Tachikoma-specific
+extension rule on every invocation and resume. In particular, disable pi-lens
+for Tachikoma runs; do not invoke pi-lens tools or let its injected diagnostics
+drive the agent's execution loop.
+
 ## 2. Preserve the user's model choice
 
 - Omit model, profile, reasoning, fallback, and provider flags by default. They inherit the CLI's current configuration or resumed session.

@@ -11,6 +11,10 @@ This skill cannot grant permissions or authorize delegation by itself.
 
 ## Permissions and paths
 
+- For the repository's Codex sandbox setup and `writable_roots` examples, see
+  [`INSTALL.md`](../../../../INSTALL.md#codex-sandbox-configuration). Keep the
+  configured roots limited to state directories required by the selected
+  external CLIs.
 - Inspect the actual command failure before requesting escalation. Fix ordinary
   errors locally; use require_escalated only when the active policy permits it.
 - Reuse applicable approved prefixes. If proposing a reusable prefix, make it

@@ -19,7 +19,7 @@ test("Pi round preserves read-only tools and failures without replaying logs or 
 		assert.equal(result.status, 17);
 		assert.doesNotMatch(result.stdout + result.stderr, /RAW-RESPONSE|RAW-ERROR/);
 		assert.match(readFileSync(join(root, "logs/session.log"), "utf8"), /RAW-RESPONSE\nRAW-ERROR/);
-		assert.deepEqual(readFileSync(join(root, "args"), "utf8").trim().split("\n"), ["--session-id", "audit-session", "--tools", "read,grep,find,ls", "--print", "Inspect the parser; do not edit."]);
+		assert.deepEqual(readFileSync(join(root, "args"), "utf8").trim().split("\n"), ["--no-lens", "--session-id", "audit-session", "--tools", "read,grep,find,ls", "--print", "Inspect the parser; do not edit."]);
 		args[4] = "2";
 		result = spawnSync("bash", args, { env: { ...env, FAKE_STATUS: "0" }, encoding: "utf8" });
 		assert.equal(result.status, 0);

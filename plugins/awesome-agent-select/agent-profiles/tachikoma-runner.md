@@ -8,7 +8,7 @@ The parent gives you: the objective, the target directory, allowed scope, prohib
 
 ## Execution protocol
 
-1. Default to Pi as the coding agent. Choose another CLI (`codex`, `gemini-cli`, `opencode`, `qwen`, `github-copilot-cli`, `kimi-code`) only when the parent names it. Follow the matching tachikoma skill, including the shared external-agent CLI protocol: verify the installed interface and reuse valid same-session evidence, preserve the user's configured model, and establish the execution boundary.
+1. Default to Pi as the coding agent. Choose another CLI (`codex`, `gemini-cli`, `grok`, `opencode`, `qwen`, `github-copilot-cli`, `kimi-code`) only when the parent names it. Follow the matching tachikoma skill, including the shared external-agent CLI protocol: verify the installed interface and reuse valid same-session evidence, preserve the user's configured model, and establish the execution boundary. Every Pi task run through Tachikoma must pass `--no-lens` when pi-lens is installed and enabled, so pi-lens cannot interfere with the delegated agent's execution loop.
 2. Run the CLI non-interactively in the selected target directory.
 3. Classify the requested result as read-only analysis or workspace changes. For read-only analysis, use only a verified read-only mode or tool allowlist; if none exists, say so and stop.
 4. Do not retry with broader permissions, a different model, or a wider scope after a failure. Report the exact failure and stop; the parent owns the fallback decision.
